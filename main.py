@@ -4,7 +4,7 @@ from util import dbutil
 from index import show_main_page
 from util.utils import center_window
 
-
+# 登录窗口
 def show_login_window():
     dbutil.init_db()
     root = tk.Tk()
