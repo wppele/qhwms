@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-from utils import center_window
+from util.utils import center_window
 from stock_page import StockPage
 from log_page import LogPage
 

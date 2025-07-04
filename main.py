@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from util import dbutil
 from index import show_main_page
-from utils import center_window
+from util.utils import center_window
 
 
 def show_login_window():

@@ -1,9 +1,9 @@
 #库存页面
 import tkinter as tk
 from tkinter import ttk
-from utils import center_window
+from util.utils import center_window
 from util import dbutil
-import utils
+import util.utils as utils
 
 def StockPage(parent, main_win):
     frame = ttk.Frame(parent)
