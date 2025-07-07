@@ -15,7 +15,7 @@ def init_db():
             password TEXT NOT NULL
         )
     ''')
-    # 创建库存表（数量改为in_quantity，新增available_quantity）
+    # 创建库存表（去掉available_quantity）
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS stock (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,8 +26,59 @@ def init_db():
             in_quantity INTEGER NOT NULL,
             price REAL NOT NULL,
             total REAL NOT NULL,
-            available_quantity INTEGER NOT NULL,
             is_settled INTEGER NOT NULL DEFAULT 0
+        )
+    ''')
+    # 结账记录表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS settle_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            factory TEXT,
+            product_no TEXT,
+            size TEXT,
+            color TEXT,
+            in_quantity INTEGER,
+            price REAL,
+            total REAL,
+            settle_date TEXT
+        )
+    ''')
+    # 入库/返厂记录表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS stock_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            factory TEXT,
+            product_no TEXT,
+            size TEXT,
+            color TEXT,
+            in_quantity INTEGER,
+            action_type TEXT, -- 入库/返厂
+            action_date TEXT
+        )
+    ''')
+    # 新增库存表（inventory），入库id为外键，库存数量等于入库数量
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS inventory (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            stock_id INTEGER NOT NULL,
+            factory TEXT NOT NULL,
+            product_no TEXT NOT NULL,
+            size TEXT,
+            color TEXT,
+            quantity INTEGER NOT NULL,
+            FOREIGN KEY(stock_id) REFERENCES stock(id)
+        )
+    ''')
+    # 新增客户信息表
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS customer_info (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            address TEXT,
+            phone TEXT,
+            logistics_name TEXT,
+            logistics_address TEXT,
+            logistics_phone TEXT
         )
     ''')
     # 检查admin账户是否存在，不存在则插入
@@ -58,7 +109,7 @@ def get_username_by_account(account):
 def get_all_stock():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT id, factory, product_no, size, color, in_quantity, price, total, available_quantity, is_settled FROM stock ORDER BY id DESC")
+    cursor.execute("SELECT id, factory, product_no, size, color, in_quantity, price, total, is_settled FROM stock ORDER BY id DESC")
     rows = cursor.fetchall()
     conn.close()
     return rows
@@ -67,9 +118,9 @@ def insert_stock(factory, product_no, size, color, in_quantity, price, total):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO stock (factory, product_no, size, color, in_quantity, price, total, available_quantity, is_settled)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
-    ''', (factory, product_no, size, color, in_quantity, price, total, in_quantity))
+        INSERT INTO stock (factory, product_no, size, color, in_quantity, price, total, is_settled)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+    ''', (factory, product_no, size, color, in_quantity, price, total))
     conn.commit()
     conn.close()
 
@@ -80,12 +131,12 @@ def delete_stock_by_id(stock_id):
     conn.commit()
     conn.close()
 
-def update_stock_by_id(stock_id, factory, product_no, size, color, in_quantity, available_quantity, price, total):
+def update_stock_by_id(stock_id, factory, product_no, size, color, in_quantity, price, total):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''
-        UPDATE stock SET factory=?, product_no=?, size=?, color=?, in_quantity=?, price=?, total=?, available_quantity=? WHERE id=?
-    ''', (factory, product_no, size, color, in_quantity, available_quantity, price, total, stock_id))
+        UPDATE stock SET factory=?, product_no=?, size=?, color=?, in_quantity=?, price=?, total=? WHERE id=?
+    ''', (factory, product_no, size, color, in_quantity, price, total, stock_id))
     conn.commit()
     conn.close()
 
@@ -99,6 +150,96 @@ def settle_stock_by_id(stock_id):
         cursor.executemany("UPDATE stock SET is_settled=1 WHERE id=?", [(i,) for i in stock_id])
     else:
         cursor.execute("UPDATE stock SET is_settled=1 WHERE id=?", (stock_id,))
+    conn.commit()
+    conn.close()
+
+# 插入结账记录
+def insert_settle_log(factory, product_no, size, color, in_quantity, price, total, settle_date):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO settle_log (factory, product_no, size, color, in_quantity, price, total, settle_date)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (factory, product_no, size, color, in_quantity, price, total, settle_date))
+    conn.commit()
+    conn.close()
+
+# 插入入库/返厂记录
+def insert_stock_log(factory, product_no, size, color, in_quantity, action_type, action_date):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO stock_log (factory, product_no, size, color, in_quantity, action_type, action_date)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ''', (factory, product_no, size, color, in_quantity, action_type, action_date))
+    conn.commit()
+    conn.close()
+
+def insert_inventory_from_stock(stock_id, factory, product_no, size, color, quantity):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO inventory (stock_id, factory, product_no, size, color, quantity)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (stock_id, factory, product_no, size, color, quantity))
+    conn.commit()
+    conn.close()
+
+def get_all_inventory():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, stock_id, factory, product_no, size, color, quantity FROM inventory ORDER BY id DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def get_all_settle_log():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT factory, product_no, size, color, in_quantity, price, total, settle_date FROM settle_log ORDER BY id DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def get_all_stock_log():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT factory, product_no, size, color, in_quantity, action_type, action_date FROM stock_log ORDER BY id DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def get_all_customers():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, name, address, phone, logistics_name, logistics_address, logistics_phone FROM customer_info ORDER BY id DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def insert_customer(name, address, phone, logistics_name, logistics_address, logistics_phone):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO customer_info (name, address, phone, logistics_name, logistics_address, logistics_phone)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (name, address, phone, logistics_name, logistics_address, logistics_phone))
+    conn.commit()
+    conn.close()
+
+def update_customer(cid, name, address, phone, logistics_name, logistics_address, logistics_phone):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE customer_info SET name=?, address=?, phone=?, logistics_name=?, logistics_address=?, logistics_phone=? WHERE id=?
+    ''', (name, address, phone, logistics_name, logistics_address, logistics_phone, cid))
+    conn.commit()
+    conn.close()
+
+def delete_customer(cid):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM customer_info WHERE id=?", (cid,))
     conn.commit()
     conn.close()
 
