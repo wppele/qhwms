@@ -76,9 +76,7 @@ def init_db():
             name TEXT NOT NULL,
             address TEXT,
             phone TEXT,
-            logistics_name TEXT,
-            logistics_address TEXT,
-            logistics_phone TEXT
+            logistics_info TEXT
         )
     ''')
     # 检查admin账户是否存在，不存在则插入
@@ -209,30 +207,38 @@ def get_all_stock_log():
     conn.close()
     return rows
 
+# 根据stock_id删除库存表中对应记录
+def delete_inventory_by_stock_id(stock_id):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM inventory WHERE stock_id=?", (stock_id,))
+    conn.commit()
+    conn.close()
+
 def get_all_customers():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT id, name, address, phone, logistics_name, logistics_address, logistics_phone FROM customer_info ORDER BY id DESC")
+    cursor.execute("SELECT id, name, address, phone, logistics_info FROM customer_info ORDER BY id DESC")
     rows = cursor.fetchall()
     conn.close()
     return rows
 
-def insert_customer(name, address, phone, logistics_name, logistics_address, logistics_phone):
+def insert_customer(name, address, phone, logistics_info):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO customer_info (name, address, phone, logistics_name, logistics_address, logistics_phone)
-        VALUES (?, ?, ?, ?, ?, ?)
-    ''', (name, address, phone, logistics_name, logistics_address, logistics_phone))
+        INSERT INTO customer_info (name, address, phone, logistics_info)
+        VALUES (?, ?, ?, ?)
+    ''', (name, address, phone, logistics_info))
     conn.commit()
     conn.close()
 
-def update_customer(cid, name, address, phone, logistics_name, logistics_address, logistics_phone):
+def update_customer(cid, name, address, phone, logistics_info):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''
-        UPDATE customer_info SET name=?, address=?, phone=?, logistics_name=?, logistics_address=?, logistics_phone=? WHERE id=?
-    ''', (name, address, phone, logistics_name, logistics_address, logistics_phone, cid))
+        UPDATE customer_info SET name=?, address=?, phone=?, logistics_info=? WHERE id=?
+    ''', (name, address, phone, logistics_info, cid))
     conn.commit()
     conn.close()
 

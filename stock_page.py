@@ -201,20 +201,27 @@ def StockPage(parent, main_win):
         btn_frame.pack(pady=5)
         def do_return():
             dialog.destroy()
+            stock_id = tree.selection()[0]
             # 写入返厂日志
             dbutil.insert_stock_log(
                 factory, product_no, size, color, int(values[5]), '返厂', utils.get_current_date()
             )
+            # 同步删除库存表中对应记录
+            dbutil.delete_inventory_by_stock_id(stock_id)
+            dbutil.delete_stock_by_id(stock_id)
             # 自动刷新日志页面
             if hasattr(main_win, 'refresh_logs'):
                 main_win.refresh_logs()
-            tk.messagebox.showinfo("返厂", f"已将【{factory} {product_no} {color} {size}】标记为返厂！")
+            load_stock_data()
+            tk.messagebox.showinfo("返厂", f"已将【{factory} {product_no} {color} {size}】标记为返厂，并同步删除库存！")
         def do_delete():
             dialog.destroy()
             stock_id = tree.selection()[0]
+            # 先删除库存表中对应记录
+            dbutil.delete_inventory_by_stock_id(stock_id)
             dbutil.delete_stock_by_id(stock_id)
             load_stock_data()
-            tk.messagebox.showinfo("删除", "删除成功！")
+            tk.messagebox.showinfo("删除", "删除成功，库存已同步删除！")
         def do_cancel():
             dialog.destroy()
         ttk.Button(btn_frame, text="返厂", width=8, command=do_return).pack(side=tk.LEFT, padx=8)
