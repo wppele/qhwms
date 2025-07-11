@@ -33,15 +33,14 @@ def show_main_page(username, root=None):
     nav_frame.pack(side=tk.LEFT, fill=tk.Y)
     nav_tree = ttk.Treeview(nav_frame, show="tree", selectmode="browse", height=20)
     nav_tree.pack(fill=tk.Y, expand=True, padx=5, pady=5)
-    # 添加菜单项（入库、结账记录、入库/返厂记录、客户/库存）
-    up_id = nav_tree.insert('', 'end', text='上游厂商', open=True)
-    nav_tree.insert(up_id, 'end', text='入库', iid='up_stock')
+    # 添加菜单项（入库、结账记录、入库/返厂记录、库存、客户信息）
+    up_id = nav_tree.insert('', 'end', text='采购管理', open=True)
+    nav_tree.insert(up_id, 'end', text='采购入库', iid='up_stock')
     nav_tree.insert(up_id, 'end', text='结账记录', iid='settle_log')
     nav_tree.insert(up_id, 'end', text='入库/返厂记录', iid='stock_log')
-    # 新增客户及库存菜单
-    customer_id = nav_tree.insert('', 'end', text='客户', iid='customer', open=True)
-    nav_tree.insert(customer_id, 'end', text='库存', iid='inventory')
-    nav_tree.insert(customer_id, 'end', text='客户信息', iid='customer_info')
+    # 库存和客户信息为一级菜单
+    nav_tree.insert('', 'end', text='销售开单', iid='inventory')
+    nav_tree.insert('', 'end', text='客户信息', iid='customer_info')
 
     # 收缩/展开按钮，始终在左侧
     def toggle_nav():
