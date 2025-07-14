@@ -5,6 +5,7 @@ from stock_page import StockPage
 from record_pages import SettleLogPage, StockLogPage
 from inventory_page import InventoryPage  # 新增库存页面导入
 from customer_page import CustomerPage
+from outbound_manage_page import OutboundManagePage
 
 def show_main_page(username, root=None):
     if root is not None:
@@ -31,16 +32,37 @@ def show_main_page(username, root=None):
     nav_container.pack(side=tk.LEFT, fill=tk.Y)
     nav_frame = ttk.Frame(nav_container)
     nav_frame.pack(side=tk.LEFT, fill=tk.Y)
-    nav_tree = ttk.Treeview(nav_frame, show="tree", selectmode="browse", height=20)
+    style = ttk.Style()
+    style.configure('Sidebar.Treeview',
+                    font=("微软雅黑", 14, "bold"),
+                    rowheight=38)
+    style.configure('Sidebar.Treeview.Heading', font=("微软雅黑", 15, "bold"))
+    # 选中项字体颜色鲜艳（如蓝色），背景色高亮
+    style.map('Sidebar.Treeview',
+              background=[('selected', '#00bcd4')],
+              foreground=[('selected', '#fffb00')])  # 黄色字体
+    nav_tree = ttk.Treeview(nav_frame, show="tree", selectmode="browse", height=20, style='Sidebar.Treeview')
     nav_tree.pack(fill=tk.Y, expand=True, padx=5, pady=5)
-    # 添加菜单项（入库、结账记录、入库/返厂记录、库存、客户信息）
-    up_id = nav_tree.insert('', 'end', text='采购管理', open=True)
+    # 侧边栏整体背景色
+    nav_frame.configure(style='Sidebar.TFrame')
+    style.configure('Sidebar.TFrame', background='#f5f7fa')
+    # 添加菜单项（采购管理、销售管理、客户信息）
+    up_id = nav_tree.insert('', 'end', text='采购管理', open=False)  # 默认为闭合
     nav_tree.insert(up_id, 'end', text='采购入库', iid='up_stock')
     nav_tree.insert(up_id, 'end', text='结账记录', iid='settle_log')
     nav_tree.insert(up_id, 'end', text='入库/返厂记录', iid='stock_log')
-    # 库存和客户信息为一级菜单
-    nav_tree.insert('', 'end', text='销售开单', iid='inventory')
-    nav_tree.insert('', 'end', text='客户信息', iid='customer_info')
+
+    # 销售管理为一级菜单，包含销售开单、出库单管理、销售退换货、收款结算
+    sale_id = nav_tree.insert('', 'end', text='销售管理', open=False)
+    nav_tree.insert(sale_id, 'end', text='销售开单', iid='inventory')
+    nav_tree.insert(sale_id, 'end', text='出库单管理', iid='outbound_manage')
+    nav_tree.insert(sale_id, 'end', text='销售退换货', iid='sale_return')
+    nav_tree.insert(sale_id, 'end', text='收款结算', iid='sale_settle')
+
+    # 基础信息管理为一级菜单，包含客户信息、账户管理
+    base_id = nav_tree.insert('', 'end', text='基础信息管理', open=False)
+    nav_tree.insert(base_id, 'end', text='客户信息', iid='customer_info')
+    nav_tree.insert(base_id, 'end', text='账户管理', iid='account_manage')
 
     # 收缩/展开按钮，始终在左侧
     def toggle_nav():
@@ -50,8 +72,9 @@ def show_main_page(username, root=None):
         else:
             nav_frame.pack(side=tk.LEFT, fill=tk.Y)
             toggle_btn.config(text='◀')
-    toggle_btn = ttk.Button(nav_container, text='◀', width=2, command=toggle_nav)
-    toggle_btn.pack(side=tk.RIGHT, fill=tk.Y)
+    toggle_btn = ttk.Button(nav_container, text='◀', width=2, command=toggle_nav, style='Sidebar.TButton')
+    style.configure('Sidebar.TButton', font=("微软雅黑", 13, "bold"), background='#e0f7fa', foreground='#1a3d1a')
+    toggle_btn.pack(side=tk.RIGHT, fill=tk.Y, padx=2, pady=2)
 
     # 右侧内容区
     content_frame = ttk.Frame(main_frame)
@@ -63,10 +86,11 @@ def show_main_page(username, root=None):
     page_stock_log = StockLogPage(content_frame)
     page_inventory = InventoryPage(content_frame)  # 新增库存页面实例
     page_customer = CustomerPage(content_frame)
+    page_outbound_manage = OutboundManagePage(content_frame)
 
     # 页面切换逻辑
     def show_page(page):
-        for f in (page_stock, page_settle_log, page_stock_log, page_inventory, page_customer):
+        for f in (page_stock, page_settle_log, page_stock_log, page_inventory, page_customer, page_outbound_manage):
             f.pack_forget()
         page.pack(fill=tk.BOTH, expand=True)
         # 切换到日志页面时自动刷新
@@ -87,12 +111,20 @@ def show_main_page(username, root=None):
             show_page(page_settle_log)
         elif sel == 'stock_log':
             show_page(page_stock_log)
-        elif sel == 'inventory':  # 新增库存菜单选择
+        elif sel == 'inventory':  # 销售开单
             show_page(page_inventory)
         elif sel == 'customer_info':
             show_page(page_customer)
+        elif sel == 'account_manage':
+            tk.messagebox.showinfo('提示', '账户管理功能待开发')
+        elif sel == 'outbound_manage':
+            show_page(page_outbound_manage)
+        elif sel == 'sale_return':
+            tk.messagebox.showinfo('提示', '销售退换货功能待开发')
+        elif sel == 'sale_settle':
+            tk.messagebox.showinfo('提示', '收款结算功能待开发')
     nav_tree.bind('<<TreeviewSelect>>', on_nav_select)
-    # 默认显示库存
+    # 默认显示采购入库
     nav_tree.selection_set('up_stock')
     show_page(page_stock)
 
