@@ -36,31 +36,69 @@ def OutboundManagePage(parent):
     for col, text in headers:
         tree.heading(col, text=text)
         tree.column(col, anchor=tk.CENTER, width=110)
-    # 加载数据
+    # 批量结账按钮
+    def on_batch_payment():
+        # 获取当前选中的订单（主表）
+        sel = tree.selection()
+        if not sel:
+            tk.messagebox.showwarning("提示", "请先选择要结账的订单主行！")
+            return
+        # 找到选中行对应的 order_no
+        order_no = tree.item(sel[0])['values'][0]
+        if not order_no:
+            tk.messagebox.showwarning("提示", "请在订单主行点击结账！")
+            return
+        # 获取主表信息
+        all_rows = dbutil.get_all_outbound_orders()
+        outbound_id = None
+        for r in all_rows:
+            if r[1] == order_no:
+                outbound_id = r[0]
+                break
+        if not outbound_id:
+            tk.messagebox.showerror("错误", "未找到对应出库单！")
+            return
+        # 获取明细
+        items = dbutil.get_outbound_items_by_order(outbound_id)
+        # items: (item_id, outbound_id, product_id, product_no, color, size, quantity, amount, item_pay_status, paid_amount, debt_amount, returnable_qty)
+        item_list = [(i[0], i[3], i[4], i[5], i[6], i[7], i[9], i[10]) for i in items]
+        from payment_dialog import PaymentDialog
+        PaymentDialog(frame, outbound_id, item_list)
+
     def load_data():
         for row in tree.get_children():
             tree.delete(row)
         all_rows = dbutil.get_all_outbound_orders()
-        # 合并相同订单号，订单下多行明细
+        # 新结构：r = (outbound_id, order_no, customer_id, total_amount, pay_status, total_paid, total_debt, create_time)
         order_map = {}
         for r in all_rows:
-            # r: (id, order_no, customer_name, address, logistics_info, product_no, color, size, quantity, price, total, outbound_date, is_paid, pay_method, pay_date)
             order_no = r[1]
             if order_no not in order_map:
                 order_map[order_no] = {
+                    "outbound_id": r[0],
                     "order_no": r[1],
-                    "customer_name": r[2],
-                    "outbound_date": r[11],
-                    "is_paid": r[12],
-                    "pay_method": r[13],
-                    "pay_date": r[14],
+                    "customer_id": r[2],
+                    "total_amount": r[3],
+                    "pay_status": r[4],
+                    "total_paid": r[5],
+                    "total_debt": r[6],
+                    "create_time": r[7],
                     "details": []
                 }
-            order_map[order_no]["details"].append({
-                "product_no": r[5],
-                "color": r[6],
-                "quantity": r[8]
-            })
+            # 明细需单独查
+        # 获取客户id到客户名的映射
+        customer_map = {c[0]: c[1] for c in dbutil.get_all_customers()}
+        for o in order_map.values():
+            # 关联客户名
+            o["customer_name"] = customer_map.get(o["customer_id"], "")
+            items = dbutil.get_outbound_items_by_order(o["outbound_id"])
+            for item in items:
+                # item: (item_id, outbound_id, product_id, product_no, color, size, quantity, amount, item_pay_status, paid_amount, debt_amount, returnable_qty)
+                o["details"].append({
+                    "product_no": item[3],
+                    "color": item[4],
+                    "quantity": item[6]
+                })
         # 搜索过滤
         order_list = list(order_map.values())
         order_no_kw = search_order_no.get().strip()
@@ -72,6 +110,7 @@ def OutboundManagePage(parent):
         # 展示：每个订单一行主信息，明细多行
         for o in order_list:
             first = True
+            # 用 create_time 代替 outbound_date，pay_status 代替 is_paid
             for d in o["details"]:
                 tree.insert("", tk.END, values=(
                     o["order_no"] if first else "",
@@ -79,12 +118,16 @@ def OutboundManagePage(parent):
                     d["product_no"],
                     d["color"],
                     d["quantity"],
-                    o["outbound_date"] if first else "",
-                    ("已付款" if o["is_paid"] else "欠款") if first else "",
-                    o["pay_method"] if first else "",
-                    o["pay_date"] if first else ""
+                    o["create_time"] if first else "",
+                    ("全额支付" if o["pay_status"]==2 else ("部分支付" if o["pay_status"]==1 else "欠款")) if first else "",
+                    "" if first else "",
+                    "" if first else ""
                 ))
                 first = False
+    # 结账按钮
+    btn_frame = ttk.Frame(frame)
+    btn_frame.pack(fill=tk.X, padx=10, pady=4)
+    ttk.Button(btn_frame, text="批量结账", command=on_batch_payment, width=12).pack(side=tk.LEFT)
     frame.refresh = load_data
     load_data()
     return frame

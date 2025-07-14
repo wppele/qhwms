@@ -1,14 +1,53 @@
 import sqlite3
 import os
-# 插入出库单记录
-def insert_outbound_order(order_no, customer_name, address, logistics_info, product_no, color, size, quantity, price, total, outbound_date, is_paid, pay_method, pay_date):
-    """插入一条出库单记录到outbound_order表"""
+
+# 新出库单主表插入
+def insert_outbound_order(order_no, customer_id, total_amount, pay_status, total_paid, total_debt, create_time):
+    """插入一条出库单主表记录，返回主键outbound_id"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO outbound_order (order_no, customer_name, address, logistics_info, product_no, color, size, quantity, price, total, outbound_date, is_paid, pay_method, pay_date)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (order_no, customer_name, address, logistics_info, product_no, color, size, quantity, price, total, outbound_date, is_paid, pay_method, pay_date))
+        INSERT INTO outbound_order (order_no, customer_id, total_amount, pay_status, total_paid, total_debt, create_time)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ''', (order_no, customer_id, total_amount, pay_status, total_paid, total_debt, create_time))
+    outbound_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return outbound_id
+
+# 新出库单明细插入
+def insert_outbound_item(outbound_id, product_id, product_no, color, size, quantity, amount, item_pay_status, paid_amount, debt_amount, returnable_qty):
+    """插入一条出库单明细记录"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO outbound_item (outbound_id, product_id, product_no, color, size, quantity, amount, item_pay_status, paid_amount, debt_amount, returnable_qty)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (outbound_id, product_id, product_no, color, size, quantity, amount, item_pay_status, paid_amount, debt_amount, returnable_qty))
+    conn.commit()
+    conn.close()
+
+# 新增支付记录
+def insert_payment_record(outbound_id, item_ids, payment_amount, pay_time):
+    """插入一条支付记录"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO payment_record (outbound_id, item_ids, payment_amount, pay_time)
+        VALUES (?, ?, ?, ?)
+    ''', (outbound_id, item_ids, payment_amount, pay_time))
+    conn.commit()
+    conn.close()
+
+# 新增欠账记录
+def insert_debt_record(outbound_id, item_ids, remaining_debt):
+    """插入一条欠账记录"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO debt_record (outbound_id, item_ids, remaining_debt)
+        VALUES (?, ?, ?)
+    ''', (outbound_id, item_ids, remaining_debt))
     conn.commit()
     conn.close()
 
@@ -33,12 +72,41 @@ def decrease_inventory_by_id(inventory_id, quantity):
     conn.commit()
     conn.close()
 
-# 获取所有出库单记录（outbound_order表）
+
+# 获取所有出库单主表
 def get_all_outbound_orders():
-    """获取所有出库单记录（outbound_order表）"""
+    """获取所有出库单主表记录（outbound_order）"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT id, order_no, customer_name, address, logistics_info, product_no, color, size, quantity, price, total, outbound_date, is_paid, pay_method, pay_date FROM outbound_order ORDER BY id DESC")
+    cursor.execute("SELECT outbound_id, order_no, customer_id, total_amount, pay_status, total_paid, total_debt, create_time FROM outbound_order ORDER BY outbound_id DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+# 获取指定出库单的所有明细
+def get_outbound_items_by_order(outbound_id):
+    """获取指定出库单的所有明细（outbound_item）"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT item_id, outbound_id, product_id, product_no, color, size, quantity, amount, item_pay_status, paid_amount, debt_amount, returnable_qty FROM outbound_item WHERE outbound_id=?", (outbound_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+# 获取所有支付记录
+def get_all_payment_records():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT payment_id, outbound_id, item_ids, payment_amount, pay_time FROM payment_record ORDER BY payment_id DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+# 获取所有欠账记录
+def get_all_debt_records():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT debt_id, outbound_id, item_ids, remaining_debt FROM debt_record ORDER BY debt_id DESC")
     rows = cursor.fetchall()
     conn.close()
     return rows
@@ -171,40 +239,56 @@ def init_db():
             logistics_info TEXT
         )
     ''')
-    # 新增出库单表（outbound_order）
-    # 字段说明：
-    #   id: 主键，自增
-    #   order_no: 订单号（字符串）
-    #   customer_name: 客户姓名
-    #   address: 客户地址
-    #   logistics_info: 物流信息
-    #   product_no: 货号
-    #   color: 颜色
-    #   size: 尺码
-    #   quantity: 出库数量
-    #   price: 单价
-    #   total: 合计
-    #   outbound_date: 出库日期
-    #   is_paid: 是否付款（0未付款，1已付款）
-    #   pay_method: 付款方式
-    #   pay_date: 付款日期
+    # 新出库单主表（OutboundOrder）
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS outbound_order (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            outbound_id INTEGER PRIMARY KEY AUTOINCREMENT,
             order_no TEXT NOT NULL,
-            customer_name TEXT NOT NULL,
-            address TEXT,
-            logistics_info TEXT,
-            product_no TEXT NOT NULL,
+            customer_id INTEGER,
+            total_amount REAL NOT NULL,
+            pay_status INTEGER NOT NULL DEFAULT 0, -- 0未支付/1部分/2全额
+            total_paid REAL NOT NULL DEFAULT 0,
+            total_debt REAL NOT NULL DEFAULT 0,
+            create_time TEXT
+        )
+    ''')
+    # 新出库单明细表（OutboundItem）
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS outbound_item (
+            item_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            outbound_id INTEGER NOT NULL,
+            product_id INTEGER,
+            product_no TEXT,
             color TEXT,
             size TEXT,
             quantity INTEGER NOT NULL,
-            price REAL NOT NULL,
-            total REAL NOT NULL,
-            outbound_date TEXT NOT NULL,
-            is_paid INTEGER NOT NULL DEFAULT 0,
-            pay_method TEXT,
-            pay_date TEXT
+            amount REAL NOT NULL,
+            item_pay_status INTEGER NOT NULL DEFAULT 0, -- 0未付/1已付
+            paid_amount REAL NOT NULL DEFAULT 0,
+            debt_amount REAL NOT NULL DEFAULT 0,
+            returnable_qty INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY(outbound_id) REFERENCES outbound_order(outbound_id)
+        )
+    ''')
+    # 新支付记录表（PaymentRecord）
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS payment_record (
+            payment_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            outbound_id INTEGER NOT NULL,
+            item_ids TEXT,
+            payment_amount REAL NOT NULL,
+            pay_time TEXT,
+            FOREIGN KEY(outbound_id) REFERENCES outbound_order(outbound_id)
+        )
+    ''')
+    # 新欠账记录表（DebtRecord）
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS debt_record (
+            debt_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            outbound_id INTEGER NOT NULL,
+            item_ids TEXT,
+            remaining_debt REAL NOT NULL,
+            FOREIGN KEY(outbound_id) REFERENCES outbound_order(outbound_id)
         )
     ''')
     # 检查admin账户是否存在，不存在则插入

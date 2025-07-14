@@ -17,7 +17,7 @@ def OutboundDialog(parent, cart_list):
     dialog.grab_set()
     # 顶部标题
     tk.Label(dialog, text="千辉鞋业出库单", font=("微软雅黑", 16, "bold"), fg="#2a5d2a").pack(pady=(18, 8))
-    # 订单号、客户姓名、地址、出库日期一行显示
+    # 订单号、客户、出库日期一行显示
     now = datetime.datetime.now()
     order_no = f"QH{now.strftime('%Y%m%d%H%M%S')}"
     top_row = ttk.Frame(dialog)
@@ -25,42 +25,27 @@ def OutboundDialog(parent, cart_list):
     ttk.Label(top_row, text="订单号:", font=("微软雅黑", 11)).pack(side=tk.LEFT)
     order_no_var = tk.StringVar(value=order_no)
     ttk.Entry(top_row, textvariable=order_no_var, width=18, state='readonly').pack(side=tk.LEFT, padx=4)
-    ttk.Label(top_row, text="客户姓名:", font=("微软雅黑", 11)).pack(side=tk.LEFT, padx=(12,0))
+    ttk.Label(top_row, text="客户:", font=("微软雅黑", 11)).pack(side=tk.LEFT, padx=(12,0))
     customers = dbutil.get_all_customers()
     customer_names = [c[1] for c in customers]
     customer_var = tk.StringVar()
-    address_var = tk.StringVar()
-    logistics_var = tk.StringVar()
-    def on_customer_select(event=None):
-        name = customer_var.get()
-        for c in customers:
-            if c[1] == name:
-                address_var.set(c[2] or "")
-                logistics_var.set(c[4] or "")
-                break
     customer_combo = ttk.Combobox(top_row, textvariable=customer_var, values=customer_names, width=14, state="readonly")
     customer_combo.pack(side=tk.LEFT, padx=4)
-    customer_combo.bind('<<ComboboxSelected>>', on_customer_select)
-    ttk.Label(top_row, text="地址:", font=("微软雅黑", 11)).pack(side=tk.LEFT, padx=(12,0))
-    ttk.Entry(top_row, textvariable=address_var, width=22, state='readonly').pack(side=tk.LEFT, padx=4)
     ttk.Label(top_row, text="出库日期:", font=("微软雅黑", 11)).pack(side=tk.LEFT, padx=(12,0))
     date_var = tk.StringVar(value=now.strftime('%Y-%m-%d'))
     ttk.Entry(top_row, textvariable=date_var, width=12, state='readonly').pack(side=tk.LEFT, padx=4)
-
-    # 物流信息单独一行100%宽
-    logistics_row = ttk.Frame(dialog)
-    logistics_row.pack(fill=tk.X, padx=30, pady=2)
-    ttk.Label(logistics_row, text="物流信息:", font=("微软雅黑", 11)).pack(side=tk.LEFT)
-    ttk.Entry(logistics_row, textvariable=logistics_var, width=90, state='readonly').pack(side=tk.LEFT, padx=6, fill=tk.X, expand=True)
     # 表格区
-    columns = ("product_no", "color", "size", "quantity", "price", "total")
+    columns = ("product_no", "color", "size", "quantity", "price", "amount", "item_pay_status", "paid_amount", "debt_amount")
     headers = [
         ("product_no", "货号"),
         ("color", "颜色"),
         ("size", "尺码"),
-        ("quantity", "出库数量"),
+        ("quantity", "数量"),
         ("price", "单价"),
-        ("total", "合计")
+        ("amount", "金额"),
+        ("item_pay_status", "支付状态"),
+        ("paid_amount", "已付"),
+        ("debt_amount", "欠款")
     ]
     tree = ttk.Treeview(dialog, columns=columns, show="headings", height=13)
     tree.pack(fill=tk.X, padx=30, pady=12)
@@ -69,47 +54,40 @@ def OutboundDialog(parent, cart_list):
         tree.column(col, anchor=tk.CENTER, width=90)
     # 填充表格
     for v, qty, price in cart_list:
-        total = f"{qty*price:.2f}"
-        tree.insert("", tk.END, values=(v[2], v[4], v[3], qty, price, total))
-    # 合计金额、付款状态、付款方式、付款日期一行显示在表格下方
+        amount = qty * price
+        tree.insert("", tk.END, values=(v[2], v[4], v[3], qty, price, f"{amount:.2f}", "欠款", "0.00", f"{amount:.2f}"))
+    # 合计金额、总已付、总欠款一行显示在表格下方
     bottom_frame = ttk.Frame(dialog)
     bottom_frame.pack(fill=tk.X, padx=30, pady=8)
     ttk.Label(bottom_frame, text="合计金额:", font=("微软雅黑", 11)).pack(side=tk.LEFT)
     total_var = tk.StringVar(value="0.00")
     ttk.Entry(bottom_frame, textvariable=total_var, width=12, state='readonly').pack(side=tk.LEFT, padx=6)
-    ttk.Label(bottom_frame, text="付款状态:", font=("微软雅黑", 11)).pack(side=tk.LEFT, padx=(18,0))
-    pay_status_var = tk.StringVar(value="欠款")
-    def on_pay_status_change():
-        if pay_status_var.get() == "已付款":
-            pay_method_combo.config(state="readonly")
-            pay_date_entry.config(state="normal")
-        else:
-            pay_method_combo.config(state="disabled")
-            pay_date_entry.config(state="disabled")
-    pay_status_combo = ttk.Combobox(bottom_frame, textvariable=pay_status_var, values=["已付款", "欠款"], width=8, state="readonly")
-    pay_status_combo.pack(side=tk.LEFT, padx=6)
-    pay_status_combo.bind('<<ComboboxSelected>>', lambda e: on_pay_status_change())
-    ttk.Label(bottom_frame, text="付款方式:", font=("微软雅黑", 11)).pack(side=tk.LEFT, padx=(18,0))
-    pay_method_var = tk.StringVar()
-    pay_method_combo = ttk.Combobox(bottom_frame, textvariable=pay_method_var, values=["现金", "微信", "支付宝", "银联", "云闪付"], width=8, state="disabled")
-    pay_method_combo.pack(side=tk.LEFT, padx=6)
-    ttk.Label(bottom_frame, text="付款日期:", font=("微软雅黑", 11)).pack(side=tk.LEFT, padx=(18,0))
-    pay_date_var = tk.StringVar(value=now.strftime('%Y-%m-%d'))
-    pay_date_entry = ttk.Entry(bottom_frame, textvariable=pay_date_var, width=12, state="disabled")
-    pay_date_entry.pack(side=tk.LEFT, padx=6)
+    ttk.Label(bottom_frame, text="总已付:", font=("微软雅黑", 11)).pack(side=tk.LEFT, padx=(18,0))
+    total_paid_var = tk.StringVar(value="0.00")
+    ttk.Entry(bottom_frame, textvariable=total_paid_var, width=12, state='readonly').pack(side=tk.LEFT, padx=6)
+    ttk.Label(bottom_frame, text="总欠款:", font=("微软雅黑", 11)).pack(side=tk.LEFT, padx=(18,0))
+    total_debt_var = tk.StringVar(value="0.00")
+    ttk.Entry(bottom_frame, textvariable=total_debt_var, width=12, state='readonly').pack(side=tk.LEFT, padx=6)
     # 自动合计金额
     def calc_total():
         total = 0.0
+        total_paid = 0.0
+        total_debt = 0.0
         for item in tree.get_children():
             vals = tree.item(item)['values']
             try:
-                q = int(vals[3])
-                p = float(vals[4]) if vals[4] else 0
-                total += q * p
-                tree.set(item, "total", f"{q*p:.2f}")
+                amount = float(vals[5]) if vals[5] else 0
+                paid = float(vals[7]) if vals[7] else 0
+                debt = float(vals[8]) if vals[8] else 0
+                total += amount
+                total_paid += paid
+                total_debt += debt
+                tree.set(item, "amount", f"{amount:.2f}")
             except Exception:
-                tree.set(item, "total", "")
+                tree.set(item, "amount", "")
         total_var.set(f"{total:.2f}")
+        total_paid_var.set(f"{total_paid:.2f}")
+        total_debt_var.set(f"{total_debt:.2f}")
     # 监听单价输入
     def on_price_edit(event):
         for item in tree.get_children():
@@ -153,37 +131,40 @@ def OutboundDialog(parent, cart_list):
         if not customer_var.get():
             messagebox.showwarning("提示", "请选择客户！")
             return
-        # 其它校验略，可扩展
-        # 生成出库单并写入数据库
+        # 生成出库单主表
         try:
-            for item in tree.get_children():
+            total = float(total_var.get())
+            total_paid = float(total_paid_var.get())
+            total_debt = float(total_debt_var.get())
+            now_str = now.strftime('%Y-%m-%d %H:%M:%S')
+            # 获取客户id
+            customer_id = None
+            for c in customers:
+                if c[1] == customer_var.get():
+                    customer_id = c[0]
+                    break
+            outbound_id = dbutil.insert_outbound_order(
+                order_no_var.get(), customer_id, total, 0, total_paid, total_debt, now_str
+            )
+            # 插入明细
+            for idx, item in enumerate(tree.get_children()):
                 vals = tree.item(item)['values']
                 product_no = vals[0]
                 color = vals[1]
                 size = vals[2]
                 quantity = int(vals[3])
                 price = float(vals[4]) if vals[4] else 0
-                total = float(vals[5]) if vals[5] else 0
-                # 写入出库单表
-                dbutil.insert_outbound_order(
-                    order_no_var.get(),
-                    customer_var.get(),
-                    address_var.get(),
-                    logistics_var.get(),
-                    product_no,
-                    color,
-                    size,
-                    quantity,
-                    price,
-                    total,
-                    date_var.get(),
-                    1 if pay_status_var.get() == "已付款" else 0,
-                    pay_method_var.get(),
-                    pay_date_var.get() if pay_status_var.get() == "已付款" else None
+                amount = float(vals[5]) if vals[5] else 0
+                item_pay_status = 0 # 欠款
+                paid_amount = 0.0
+                debt_amount = amount
+                returnable_qty = quantity
+                # 可扩展：后续支持明细级支付
+                dbutil.insert_outbound_item(
+                    outbound_id, None, product_no, color, size, quantity, amount, item_pay_status, paid_amount, debt_amount, returnable_qty
                 )
                 # 优先用库存主键id减少库存
                 inventory_id = None
-                # cart_list: [(v, qty, price), ...]，v[0]=id
                 for cart in cart_list:
                     v, qty, p = cart
                     if v[2] == product_no and v[4] == color and v[3] == size and qty == quantity:
