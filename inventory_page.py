@@ -41,12 +41,11 @@ def InventoryPage(parent):
     cart_btn.pack(side=tk.RIGHT, padx=10)
     update_cart_btn()
     # 表格区
-    columns = ("no", "factory", "product_no", "size", "color", "quantity")
+    columns = ("no", "factory", "product_no", "color", "quantity")
     headers = [
         ("no", "序号"),
         ("factory", "厂家"),
         ("product_no", "货号"),
-        ("size", "尺码"),
         ("color", "颜色"),
         ("quantity", "库存数量")
     ]
@@ -66,7 +65,7 @@ def InventoryPage(parent):
         product_no = search_product_no.get().strip()
         filtered = []
         for r in all_rows:
-            # r: (id, stock_id, factory, product_no, size, color, quantity)
+            # r: (id, stock_id, factory, product_no, color, quantity)
             if factory and factory not in (r[2] or ""):
                 continue
             if product_no and product_no not in (r[3] or ""):
@@ -74,7 +73,8 @@ def InventoryPage(parent):
             filtered.append(r)
         for idx, row in enumerate(filtered, 1):
             # 隐藏id/stock_id，首列为序号
-            values = [idx, row[2], row[3], row[4], row[5], row[6]]
+            # row: (id, stock_id, factory, product_no, color, quantity)
+            values = [idx, row[2], row[3], row[4], row[5]]
             tree.insert("", tk.END, values=values, tags=(str(row[0]),))
     def do_search():
         load_data()
@@ -125,7 +125,7 @@ def InventoryPage(parent):
                 error_label['text'] = "请输入有效数字！"
                 return
             # 加入待出库，附带单价
-            # values: [序号, factory, product_no, size, color, quantity]，需带上id
+            # values: [序号, factory, product_no, color, quantity]，需带上id
             # 通过 tags 获取库存id
             inventory_id = None
             if selected:

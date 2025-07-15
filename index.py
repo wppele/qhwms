@@ -56,8 +56,9 @@ def show_main_page(username, root=None):
     sale_id = nav_tree.insert('', 'end', text='销售管理', open=False)
     nav_tree.insert(sale_id, 'end', text='销售开单', iid='inventory')
     nav_tree.insert(sale_id, 'end', text='出库单管理', iid='outbound_manage')
+    nav_tree.insert(sale_id, 'end', text='付款记录查询', iid='payment_record_query')
     nav_tree.insert(sale_id, 'end', text='销售退换货', iid='sale_return')
-    nav_tree.insert(sale_id, 'end', text='收款结算', iid='sale_settle')
+    nav_tree.insert(sale_id, 'end', text='余款结算', iid='arrears_settle')
 
     # 基础信息管理为一级菜单，包含客户信息、账户管理
     base_id = nav_tree.insert('', 'end', text='基础信息管理', open=False)
@@ -87,10 +88,14 @@ def show_main_page(username, root=None):
     page_inventory = InventoryPage(content_frame)  # 新增库存页面实例
     page_customer = CustomerPage(content_frame)
     page_outbound_manage = OutboundManagePage(content_frame)
+    from payment_record_page import PaymentRecordPage
+    page_payment_record = PaymentRecordPage(content_frame)
+    from arrears_settle_page import ArrearsSettlePage
+    page_arrears_settle = ArrearsSettlePage(content_frame)
 
     # 页面切换逻辑
     def show_page(page):
-        for f in (page_stock, page_settle_log, page_stock_log, page_inventory, page_customer, page_outbound_manage):
+        for f in (page_stock, page_settle_log, page_stock_log, page_inventory, page_customer, page_outbound_manage, page_payment_record, page_arrears_settle):
             f.pack_forget()
         page.pack(fill=tk.BOTH, expand=True)
         # 切换到日志页面时自动刷新
@@ -119,10 +124,12 @@ def show_main_page(username, root=None):
             tk.messagebox.showinfo('提示', '账户管理功能待开发')
         elif sel == 'outbound_manage':
             show_page(page_outbound_manage)
+        elif sel == 'payment_record_query':
+            show_page(page_payment_record)
         elif sel == 'sale_return':
             tk.messagebox.showinfo('提示', '销售退换货功能待开发')
-        elif sel == 'sale_settle':
-            tk.messagebox.showinfo('提示', '收款结算功能待开发')
+        elif sel == 'arrears_settle':
+            show_page(page_arrears_settle)
     nav_tree.bind('<<TreeviewSelect>>', on_nav_select)
     # 默认显示采购入库
     nav_tree.selection_set('up_stock')

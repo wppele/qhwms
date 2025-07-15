@@ -67,13 +67,12 @@ def StockPage(parent, main_win):
         for r in tree.get_children():
             tree.delete(r)
         for idx, row in enumerate(results, 1):
-            id_, factory, product_no, size, color, in_quantity, price, total, is_settled = row
+            id_, factory, product_no,  color, in_quantity, price, total, is_settled = row
             is_settled = "是" if is_settled else "否"
             tree.insert("", tk.END, iid=str(id_), values=[
                 idx, 
                 factory, 
-                product_no, 
-                size, 
+                product_no,  
                 color, 
                 in_quantity,  # 入库数量
                 price,  # 单价
@@ -82,12 +81,11 @@ def StockPage(parent, main_win):
             ])
     ttk.Button(search_frame, text="搜索", command=do_search, width=8).pack(side=tk.LEFT, padx=6)
     # 表格区，隐藏id，新增序号列，去掉可用数量
-    columns = ("no", "factory", "product_no", "size", "color", "in_quantity", "price", "total", "is_settled")
+    columns = ("no", "factory", "product_no", "color", "in_quantity", "price", "total", "is_settled")
     headers = [
         ("no", "序号"),
         ("factory", "厂家"),
         ("product_no", "货号"),
-        ("size", "尺码"),
         ("color", "颜色"),
         ("in_quantity", "入库数量"),
         ("price", "单价"),
@@ -141,11 +139,10 @@ def StockPage(parent, main_win):
                 dbutil.insert_settle_log(
                     values[1],  # factory
                     values[2],  # product_no
-                    values[3],  # size
-                    values[4],  # color
-                    int(values[5]),  # in_quantity
-                    float(values[6]),  # price
-                    float(values[7]),  # total
+                    values[3],  # color
+                    int(values[4]),  # in_quantity
+                    float(values[5]),  # price
+                    float(values[6]),  # total
                     settle_date
                 )
             # 自动刷新日志页面
@@ -171,9 +168,9 @@ def StockPage(parent, main_win):
         for row in tree.get_children():
             tree.delete(row)
         for idx, row in enumerate(dbutil.get_all_stock(), 1):
-            id_, factory, product_no, size, color, in_quantity, price, total, is_settled = row
+            id_, factory, product_no,  color, in_quantity, price, total, is_settled = row
             is_settled = "是" if is_settled else "否"
-            tree.insert("", tk.END, iid=str(id_), values=[idx, factory, product_no, size, color, in_quantity, price, total, is_settled])
+            tree.insert("", tk.END, iid=str(id_), values=[idx, factory, product_no,  color, in_quantity, price, total, is_settled])
     load_stock_data()
     # 新增库存后刷新表格
     def open_add_stock_dialog_and_refresh():
@@ -188,14 +185,14 @@ def StockPage(parent, main_win):
             return
         item = tree.item(selected[0])
         values = item['values']
-        factory, product_no, size, color = values[1], values[2], values[3], values[4]
+        factory, product_no,  color = values[1], values[2], values[3]
         # 自定义操作对话框
         dialog = tk.Toplevel(main_win)
         dialog.title("请选择操作")
         dialog.transient(main_win)
         dialog.grab_set()
         center_window(dialog, 260, 120)
-        msg = f"对【{factory} {product_no} {color} {size}】请选择操作："
+        msg = f"对【{factory} {product_no} {color}】请选择操作："
         ttk.Label(dialog, text=msg, wraplength=240, font=("微软雅黑", 10)).pack(pady=(18, 10))
         btn_frame = ttk.Frame(dialog)
         btn_frame.pack(pady=5)
@@ -204,7 +201,7 @@ def StockPage(parent, main_win):
             stock_id = tree.selection()[0]
             # 写入返厂日志
             dbutil.insert_stock_log(
-                factory, product_no, size, color, int(values[5]), '返厂', utils.get_current_date()
+                factory, product_no,  color, int(values[4]), '返厂', utils.get_current_date()
             )
             # 同步删除库存表中对应记录
             dbutil.delete_inventory_by_stock_id(stock_id)
@@ -213,7 +210,7 @@ def StockPage(parent, main_win):
             if hasattr(main_win, 'refresh_logs'):
                 main_win.refresh_logs()
             load_stock_data()
-            tk.messagebox.showinfo("返厂", f"已将【{factory} {product_no} {color} {size}】标记为返厂，并同步删除库存！")
+            tk.messagebox.showinfo("返厂", f"已将【{factory} {product_no} {color}】标记为返厂，并同步删除库存！")
         def do_delete():
             dialog.destroy()
             stock_id = tree.selection()[0]
@@ -248,7 +245,6 @@ def StockPage(parent, main_win):
         fields = [
             ("厂家", "factory"),
             ("货号", "product_no"),
-            ("尺码", "size"),
             ("颜色", "color"),
             ("入库数量", "in_quantity"),
             ("单价", "price"),
@@ -290,7 +286,7 @@ def StockPage(parent, main_win):
         total_entry.configure(width=15)
         total_entry.grid(row=4, column=3, sticky=tk.W+tk.E, padx=5)
         vars['total'] = total_var
-        keys = ["factory", "product_no", "size", "color", "in_quantity", "price", "total"]
+        keys = ["factory", "product_no", "color", "in_quantity", "price", "total"]
         for i, k in enumerate(keys):
             vars[k].set(values[i+1])
         def update_total(*args):
@@ -307,7 +303,6 @@ def StockPage(parent, main_win):
                     stock_id,
                     vars['factory'].get().strip(),
                     vars['product_no'].get().strip(),
-                    vars['size'].get().strip(),
                     vars['color'].get().strip(),
                     int(vars['in_quantity'].get()),
                     float(vars['price'].get()),
@@ -339,7 +334,6 @@ def StockPage(parent, main_win):
         fields = [
             ("厂家", "factory"),
             ("货号", "product_no"),
-            ("尺码", "size"),
             ("颜色", "color"),
             ("入库数量", "in_quantity"),
             ("单价", "price"),
@@ -390,37 +384,38 @@ def StockPage(parent, main_win):
                     return
             try:
                 vars["total"].set(utils.calculate_total(vars["in_quantity"].get(), vars["price"].get()))
-                dbutil.insert_stock(
-                    vars['factory'].get().strip(),
-                    vars['product_no'].get().strip(),
-                    vars['size'].get().strip(),
-                    vars['color'].get().strip(),
-                    int(vars['in_quantity'].get()),
-                    float(vars['price'].get()),
-                    float(vars['total'].get())
-                )
-                # 获取最新入库id
-                stock_rows = dbutil.get_all_stock()
-                if stock_rows:
-                    stock_id = stock_rows[0][0]  # 最新一条id
-                    dbutil.insert_inventory_from_stock(
-                        stock_id,
-                        vars['factory'].get().strip(),
-                        vars['product_no'].get().strip(),
-                        vars['size'].get().strip(),
-                        vars['color'].get().strip(),
-                        int(vars['in_quantity'].get())
-                    )
-                # 写入入库日志
-                dbutil.insert_stock_log(
-                    vars['factory'].get().strip(),
-                    vars['product_no'].get().strip(),
-                    vars['size'].get().strip(),
-                    vars['color'].get().strip(),
-                    int(vars['in_quantity'].get()),
-                    '入库',
-                    utils.get_current_date()
-                )
+                factory = vars['factory'].get().strip()
+                product_no = vars['product_no'].get().strip()
+                color = vars['color'].get().strip()
+                in_quantity = int(vars['in_quantity'].get())
+                price = float(vars['price'].get())
+                total = float(vars['total'].get())
+                # 检查库存表是否有相同厂家、货号、颜色
+                inventory_rows = dbutil.get_all_inventory()
+                found = None
+                for r in inventory_rows:
+                    # r: (id, stock_id, factory, product_no, color, quantity)
+                    if r[2] == factory and r[3] == product_no and r[4] == color:
+                        found = r
+                        break
+                if found:
+                    # 有则直接增加库存数量
+                    new_qty = r[5] + in_quantity
+                    dbutil.update_inventory_quantity(r[0], new_qty)
+                    # 采购入库页面记录（合并时也写入stock表，记录本次采购明细）
+                    dbutil.insert_stock(factory, product_no, color, in_quantity, price, total)
+                    # 写入入库日志（合并）
+                    dbutil.insert_stock_log(factory, product_no, color, in_quantity, '入库(合并)', utils.get_current_date())
+                else:
+                    # 无则新增入库和库存
+                    dbutil.insert_stock(factory, product_no, color, in_quantity, price, total)
+                    # 获取最新入库id
+                    stock_rows = dbutil.get_all_stock()
+                    if stock_rows:
+                        stock_id = stock_rows[0][0]  # 最新一条id
+                        dbutil.insert_inventory_from_stock(stock_id, factory, product_no, color, in_quantity)
+                    # 写入入库日志
+                    dbutil.insert_stock_log(factory, product_no, color, in_quantity, '入库', utils.get_current_date())
                 # 自动刷新日志页面
                 if hasattr(main_win, 'refresh_logs'):
                     main_win.refresh_logs()

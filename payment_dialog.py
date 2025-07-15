@@ -8,7 +8,7 @@ def PaymentDialog(parent, outbound_id, items):
     批量结账弹窗
     :param parent: 父窗口
     :param outbound_id: 出库单主表ID
-    :param items: [(item_id, product_no, color, size, quantity, amount, paid_amount, debt_amount), ...]
+    :param items: [(item_id, product_no, color, quantity, amount, paid_amount, debt_amount), ...]
     """
     dialog = tk.Toplevel(parent)
     dialog.title("批量结账")
@@ -22,12 +22,11 @@ def PaymentDialog(parent, outbound_id, items):
     dialog.grab_set()
     ttk.Label(dialog, text="批量结账", font=("微软雅黑", 15, "bold"), foreground="#2a5d2a").pack(pady=(18, 8))
     # 结账明细表
-    columns = ("sel", "product_no", "color", "size", "quantity", "amount", "paid_amount", "debt_amount")
+    columns = ("sel", "product_no", "color", "quantity", "amount", "paid_amount", "debt_amount")
     headers = [
         ("sel", "选择"),
         ("product_no", "货号"),
         ("color", "颜色"),
-        ("size", "尺码"),
         ("quantity", "数量"),
         ("amount", "金额"),
         ("paid_amount", "已付"),
@@ -38,10 +37,17 @@ def PaymentDialog(parent, outbound_id, items):
     for col, text in headers:
         tree.heading(col, text=text)
         tree.column(col, anchor=tk.CENTER, width=70)
-    # 填充明细
+    # 填充明细，items: [(item_id, product_id, quantity, amount, paid_amount, debt_amount)]
     for item in items:
-        item_id, product_no, color, size, quantity, amount, paid_amount, debt_amount = item
-        tree.insert("", tk.END, values=("", product_no, color, size, quantity, f"{amount:.2f}", f"{paid_amount:.2f}", f"{debt_amount:.2f}"), tags=(str(item_id),))
+        item_id = item[0]
+        inv = dbutil.get_inventory_by_id(item[1])
+        product_no = inv[2] if inv else ''
+        color = inv[4] if inv else ''
+        quantity = item[2]
+        amount = item[3]
+        paid_amount = item[4]
+        debt_amount = item[5]
+        tree.insert("", tk.END, values=("", product_no, color, quantity, f"{amount:.2f}", f"{paid_amount:.2f}", f"{debt_amount:.2f}"), tags=(str(item_id),))
     # 选择框逻辑
     selected_items = set()
     def on_row_click(event):
@@ -100,6 +106,25 @@ def PaymentDialog(parent, outbound_id, items):
             # 写入支付记录
             if paid_ids:
                 dbutil.insert_payment_record(outbound_id, ','.join(paid_ids), pay_amount-remain, pay_time)
+            # 统计所有明细的已付/欠款，更新主表
+            conn = dbutil.sqlite3.connect(dbutil.DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute('SELECT SUM(paid_amount), SUM(debt_amount) FROM outbound_item WHERE outbound_id=?', (outbound_id,))
+            row = cursor.fetchone()
+            total_paid = row[0] if row[0] else 0
+            total_debt = row[1] if row[1] else 0
+            if total_debt <= 0:
+                pay_status = 2  # 全额
+            elif total_paid > 0:
+                pay_status = 1  # 部分
+            else:
+                pay_status = 0  # 未支付
+            cursor.execute('UPDATE outbound_order SET total_paid=?, total_debt=?, pay_status=? WHERE outbound_id=?',
+                           (total_paid, total_debt, pay_status, outbound_id))
+            conn.commit()
+            conn.close()
+            if hasattr(parent, 'refresh') and callable(parent.refresh):
+                parent.refresh()
             messagebox.showinfo("成功", f"支付成功，实际支付：{pay_amount-remain:.2f} 元")
             dialog.destroy()
         except Exception as e:

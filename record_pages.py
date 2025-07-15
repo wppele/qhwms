@@ -4,11 +4,10 @@ from util import dbutil
 
 def SettleLogPage(parent):
     frame = ttk.Frame(parent)
-    columns = ("factory", "product_no", "size", "color", "in_quantity", "price", "total", "settle_date")
+    columns = ("factory", "product_no", "color", "in_quantity", "price", "total", "settle_date")
     headers = [
         ("factory", "厂家"),
         ("product_no", "货号"),
-        ("size", "尺码"),
         ("color", "颜色"),
         ("in_quantity", "入库数量"),
         ("price", "单价"),
@@ -31,11 +30,10 @@ def SettleLogPage(parent):
 
 def StockLogPage(parent):
     frame = ttk.Frame(parent)
-    columns = ("factory", "product_no", "size", "color", "in_quantity", "action_type", "action_date")
+    columns = ("factory", "product_no", "color", "in_quantity", "action_type", "action_date")
     headers = [
         ("factory", "厂家"),
         ("product_no", "货号"),
-        ("size", "尺码"),
         ("color", "颜色"),
         ("in_quantity", "入库数量"),
         ("action_type", "类型"),
