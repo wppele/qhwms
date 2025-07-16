@@ -114,7 +114,7 @@ def InventoryPage(parent):
         def confirm():
             try:
                 qty = int(qty_var.get())
-                if qty <= 0 or qty > int(values[5]):
+                if qty <= 0 or qty > int(values[4]):
                     error_label['text'] = "数量需大于0且不超过库存！"
                     return
                 price = float(price_var.get())

@@ -122,7 +122,7 @@ def StockPage(parent, main_win):
             for iid in selected:
                 item = tree.item(iid)
                 values = item['values']
-                if values[8] == "是":  # 如果第10列(是否结账)为"是"
+                if values[7] == "是":  # 如果第10列(是否结账)为"是"
                     settled_items.append(values)
             if settled_items:
                 message = "以下物品已结账，确定要重复结账吗？\n\n"
