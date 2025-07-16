@@ -1,21 +1,11 @@
 import sqlite3
 import os
-# 更新库存表(inventory)的数量
-def update_inventory_quantity(inventory_id, new_quantity):
-    """根据库存id直接更新库存数量"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        UPDATE inventory SET quantity = ? WHERE id = ?
-    ''', (new_quantity, inventory_id))
-    conn.commit()
-    conn.close()
-# 通过product_id获取库存信息（货号/颜色等）
+# 通过product_id获取库存信息（货号/颜色/尺码等）
 def get_inventory_by_id(product_id):
-    """根据product_id（即inventory.id）获取库存信息，返回(id, factory, product_no, color, quantity)"""
+    """根据product_id（即inventory.id）获取库存信息，返回(id, factory, product_no, size, color, quantity)"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT id, factory, product_no, color, quantity FROM inventory WHERE id=?", (product_id,))
+    cursor.execute("SELECT id, factory, product_no, size, color, quantity FROM inventory WHERE id=?", (product_id,))
     row = cursor.fetchone()
     conn.close()
     return row
@@ -37,7 +27,7 @@ def insert_outbound_order(order_no, customer_id, total_amount, pay_status, total
 
 # 新出库单明细插入
 def insert_outbound_item(outbound_id, product_id, quantity, amount, item_pay_status, paid_amount, debt_amount, returnable_qty):
-    """插入一条出库单明细记录（去除product_no、color）"""
+    """插入一条出库单明细记录（去除product_no、color、size）"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''
@@ -71,13 +61,13 @@ def insert_debt_record(outbound_id, item_ids, remaining_debt):
     conn.commit()
     conn.close()
 
-def decrease_inventory(product_no, color, quantity):
-    """根据货号、颜色减少库存表(inventory)的数量"""
+def decrease_inventory(product_no, color, size, quantity):
+    """根据货号、颜色、尺码减少库存表(inventory)的数量"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''
-        UPDATE inventory SET quantity = quantity - ? WHERE product_no=? AND color=? AND quantity >= ?
-    ''', (quantity, product_no, color, quantity))
+        UPDATE inventory SET quantity = quantity - ? WHERE product_no=? AND color=? AND size=? AND quantity >= ?
+    ''', (quantity, product_no, color, size, quantity))
     conn.commit()
     conn.close()
 
@@ -155,12 +145,13 @@ def init_db():
             password TEXT NOT NULL
         )
     ''')
-    # 创建库存表（stock，去掉available_quantity、尺码）
+    # 创建库存表（stock，去掉available_quantity）
     # 字段说明：
     #   id: 主键，自增
     #   factory: 厂家
     #   product_no: 货号
     #   color: 颜色
+    #   size: 尺码
     #   in_quantity: 入库数量
     #   price: 单价
     #   total: 合计
@@ -171,6 +162,7 @@ def init_db():
             factory TEXT NOT NULL,
             product_no TEXT NOT NULL,
             color TEXT,
+            size TEXT,
             in_quantity INTEGER NOT NULL,
             price REAL NOT NULL,
             total REAL NOT NULL,
@@ -182,6 +174,7 @@ def init_db():
     #   id: 主键，自增
     #   factory: 厂家
     #   product_no: 货号
+    #   size: 尺码
     #   color: 颜色
     #   in_quantity: 数量
     #   price: 单价
@@ -192,6 +185,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             factory TEXT,
             product_no TEXT,
+            size TEXT,
             color TEXT,
             in_quantity INTEGER,
             price REAL,
@@ -204,6 +198,7 @@ def init_db():
     #   id: 主键，自增
     #   factory: 厂家
     #   product_no: 货号
+    #   size: 尺码
     #   color: 颜色
     #   in_quantity: 数量
     #   action_type: 操作类型（入库/返厂）
@@ -213,6 +208,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             factory TEXT,
             product_no TEXT,
+            size TEXT,
             color TEXT,
             in_quantity INTEGER,
             action_type TEXT, -- 入库/返厂
@@ -225,6 +221,7 @@ def init_db():
     #   stock_id: 入库表id（外键）
     #   factory: 厂家
     #   product_no: 货号
+    #   size: 尺码
     #   color: 颜色
     #   quantity: 库存数量
     cursor.execute('''
@@ -233,6 +230,7 @@ def init_db():
             stock_id INTEGER NOT NULL,
             factory TEXT NOT NULL,
             product_no TEXT NOT NULL,
+            size TEXT,
             color TEXT,
             quantity INTEGER NOT NULL,
             FOREIGN KEY(stock_id) REFERENCES stock(id)
@@ -335,19 +333,19 @@ def get_all_stock():
     """获取所有入库记录（库存主表）"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT id, factory, product_no, color, in_quantity, price, total, is_settled FROM stock ORDER BY id DESC")
+    cursor.execute("SELECT id, factory, product_no, size, color, in_quantity, price, total, is_settled FROM stock ORDER BY id DESC")
     rows = cursor.fetchall()
     conn.close()
     return rows
 
-def insert_stock(factory, product_no, color, in_quantity, price, total):
+def insert_stock(factory, product_no, size, color, in_quantity, price, total):
     """插入一条入库记录到stock表"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO stock (factory, product_no, color, in_quantity, price, total, is_settled)
-        VALUES (?, ?, ?, ?, ?, ?, 0)
-    ''', (factory, product_no, color, in_quantity, price, total))
+        INSERT INTO stock (factory, product_no, size, color, in_quantity, price, total, is_settled)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+    ''', (factory, product_no, size, color, in_quantity, price, total))
     conn.commit()
     conn.close()
 
@@ -359,13 +357,13 @@ def delete_stock_by_id(stock_id):
     conn.commit()
     conn.close()
 
-def update_stock_by_id(stock_id, factory, product_no, color, in_quantity, price, total):
+def update_stock_by_id(stock_id, factory, product_no, size, color, in_quantity, price, total):
     """根据id更新入库记录（stock表）"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''
-        UPDATE stock SET factory=?, product_no=?, color=?, in_quantity=?, price=?, total=? WHERE id=?
-    ''', (factory, product_no, color, in_quantity, price, total, stock_id))
+        UPDATE stock SET factory=?, product_no=?, size=?, color=?, in_quantity=?, price=?, total=? WHERE id=?
+    ''', (factory, product_no, size, color, in_quantity, price, total, stock_id))
     conn.commit()
     conn.close()
 
@@ -384,37 +382,37 @@ def settle_stock_by_id(stock_id):
     conn.close()
 
 # 插入结账记录
-def insert_settle_log(factory, product_no, color, in_quantity, price, total, settle_date):
+def insert_settle_log(factory, product_no, size, color, in_quantity, price, total, settle_date):
     """插入一条结账记录到settle_log表"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO settle_log (factory, product_no, color, in_quantity, price, total, settle_date)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    ''', (factory, product_no, color, in_quantity, price, total, settle_date))
+        INSERT INTO settle_log (factory, product_no, size, color, in_quantity, price, total, settle_date)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (factory, product_no, size, color, in_quantity, price, total, settle_date))
     conn.commit()
     conn.close()
 
 # 插入入库/返厂记录
-def insert_stock_log(factory, product_no, color, in_quantity, action_type, action_date):
+def insert_stock_log(factory, product_no, size, color, in_quantity, action_type, action_date):
     """插入一条入库/返厂操作日志到stock_log表"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO stock_log (factory, product_no, color, in_quantity, action_type, action_date)
-        VALUES (?, ?, ?, ?, ?, ?)
-    ''', (factory, product_no, color, in_quantity, action_type, action_date))
+        INSERT INTO stock_log (factory, product_no, size, color, in_quantity, action_type, action_date)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ''', (factory, product_no, size, color, in_quantity, action_type, action_date))
     conn.commit()
     conn.close()
 
-def insert_inventory_from_stock(stock_id, factory, product_no, color, quantity):
+def insert_inventory_from_stock(stock_id, factory, product_no, size, color, quantity):
     """根据入库信息插入一条库存记录到inventory表"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO inventory (stock_id, factory, product_no, color, quantity)
-        VALUES (?, ?, ?, ?, ?)
-    ''', (stock_id, factory, product_no, color, quantity))
+        INSERT INTO inventory (stock_id, factory, product_no, size, color, quantity)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (stock_id, factory, product_no, size, color, quantity))
     conn.commit()
     conn.close()
 
@@ -422,7 +420,7 @@ def get_all_inventory():
     """获取所有库存表（inventory）记录"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT id, stock_id, factory, product_no,color, quantity FROM inventory ORDER BY id DESC")
+    cursor.execute("SELECT id, stock_id, factory, product_no, size, color, quantity FROM inventory ORDER BY id DESC")
     rows = cursor.fetchall()
     conn.close()
     return rows
@@ -431,7 +429,7 @@ def get_all_settle_log():
     """获取所有结账记录（settle_log表）"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT factory, product_no, color, in_quantity, price, total, settle_date FROM settle_log ORDER BY id DESC")
+    cursor.execute("SELECT factory, product_no, size, color, in_quantity, price, total, settle_date FROM settle_log ORDER BY id DESC")
     rows = cursor.fetchall()
     conn.close()
     return rows
@@ -440,7 +438,7 @@ def get_all_stock_log():
     """获取所有入库/返厂日志（stock_log表）"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT factory, product_no, color, in_quantity, action_type, action_date FROM stock_log ORDER BY id DESC")
+    cursor.execute("SELECT factory, product_no, size, color, in_quantity, action_type, action_date FROM stock_log ORDER BY id DESC")
     rows = cursor.fetchall()
     conn.close()
     return rows

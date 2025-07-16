@@ -49,7 +49,7 @@ def OutboundDialog(parent, cart_list):
             ("order_no", "订单号"),
             ("total_amount", "总金额"),
             ("total_paid", "已付"),
-            ("total_debt", "欠款"),
+            ("total_debt", "待付款"),
             ("create_time", "出库日期")
         ]
         tree = ttk.Treeview(win, columns=columns, show="headings", height=8)
@@ -110,7 +110,7 @@ def OutboundDialog(parent, cart_list):
         ("amount", "金额"),
         ("item_pay_status", "支付状态"),
         ("paid_amount", "已付"),
-        ("debt_amount", "欠款")
+        ("debt_amount", "待付款")
     ]
     tree = ttk.Treeview(dialog, columns=columns, show="headings", height=13)
     tree.pack(fill=tk.X, padx=30, pady=12)
@@ -124,8 +124,8 @@ def OutboundDialog(parent, cart_list):
         color = inv[4] if inv else ''
         size = inv[3] if inv else ''
         amount = qty * price
-        tree.insert("", tk.END, values=(product_no, color, size, qty, price, f"{amount:.2f}", "欠款", "0.00", f"{amount:.2f}", v[0]))
-    # 合计金额、总已付、总欠款一行显示在表格下方
+        tree.insert("", tk.END, values=(product_no, color, size, qty, price, f"{amount:.2f}", "待付款", "0.00", f"{amount:.2f}", v[0]))
+    # 合计金额、总已付、总待付款一行显示在表格下方
     bottom_frame = ttk.Frame(dialog)
     bottom_frame.pack(fill=tk.X, padx=30, pady=8)
     ttk.Label(bottom_frame, text="合计金额:", font=("微软雅黑", 11)).pack(side=tk.LEFT)
@@ -134,7 +134,7 @@ def OutboundDialog(parent, cart_list):
     ttk.Label(bottom_frame, text="总已付:", font=("微软雅黑", 11)).pack(side=tk.LEFT, padx=(18,0))
     total_paid_var = tk.StringVar(value="0.00")
     ttk.Entry(bottom_frame, textvariable=total_paid_var, width=12, state='readonly').pack(side=tk.LEFT, padx=6)
-    ttk.Label(bottom_frame, text="总欠款:", font=("微软雅黑", 11)).pack(side=tk.LEFT, padx=(18,0))
+    ttk.Label(bottom_frame, text="总待付款:", font=("微软雅黑", 11)).pack(side=tk.LEFT, padx=(18,0))
     total_debt_var = tk.StringVar(value="0.00")
     ttk.Entry(bottom_frame, textvariable=total_debt_var, width=12, state='readonly').pack(side=tk.LEFT, padx=6)
 
@@ -285,7 +285,7 @@ def OutboundDialog(parent, cart_list):
             messagebox.showwarning("提示", "请输入有效的支付金额！")
             return
         # 仅UI层分配支付金额，不写数据库
-        # 获取所有明细，按欠款升序分配
+        # 获取所有明细，按待付款升序分配
         items = []
         for tree_id in tree.get_children():
             vals = tree.item(tree_id)['values']
@@ -303,7 +303,7 @@ def OutboundDialog(parent, cart_list):
             pay_this = min(remain, item['debt'])
             new_paid = item['paid'] + pay_this
             new_debt = item['debt'] - pay_this
-            new_status = '已付' if new_debt <= 0.01 else '欠款'
+            new_status = '已付' if new_debt <= 0.01 else '待付款'
             vals = list(tree.item(item['tree_id'])['values'])
             vals[6] = new_status
             vals[7] = f"{new_paid:.2f}"
