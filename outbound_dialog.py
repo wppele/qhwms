@@ -180,22 +180,44 @@ def OutboundDialog(parent, cart_list):
             except Exception:
                 tree.set(item, "price", "")
         calc_total()
-    # 允许编辑单价
+    # 允许编辑尺码和单价
     def on_double_click(event):
         item = tree.identify_row(event.y)
         col = tree.identify_column(event.x)
-        if not item or col != '#5':
+        if not item or col not in ('#3', '#5'):
+            return
+        if col == '#3':
+            col_name = 'size'
+        elif col == '#5':
+            col_name = 'price'
+        else:
             return
         x, y, width, height = tree.bbox(item, col)
-        value = tree.set(item, "price")
+        value = tree.set(item, col_name)
         entry = ttk.Entry(tree, width=8)
         entry.insert(0, value)
         entry.place(x=x, y=y, width=width, height=height)
         entry.focus_set()
         def on_focus_out(e):
-            tree.set(item, "price", entry.get())
+            new_val = entry.get()
+            tree.set(item, col_name, new_val)
             entry.destroy()
-            calc_total()
+            if col_name == 'price':
+                # 自动更新该行金额和待付款
+                vals = list(tree.item(item)['values'])
+                try:
+                    qty = float(vals[3]) if vals[3] else 0
+                    price = float(new_val) if new_val else 0
+                    amount = qty * price
+                    vals[5] = f"{amount:.2f}"
+                    paid = float(vals[7]) if vals[7] else 0
+                    debt = amount - paid
+                    vals[8] = f"{debt:.2f}"
+                except Exception:
+                    vals[5] = ""
+                    vals[8] = ""
+                tree.item(item, values=vals)
+                calc_total()
         entry.bind('<FocusOut>', on_focus_out)
         entry.bind('<Return>', on_focus_out)
     tree.bind('<Double-1>', on_double_click)
@@ -246,9 +268,13 @@ def OutboundDialog(parent, cart_list):
                 paid_amount = float(vals[7]) if vals[7] else 0
                 debt_amount = float(vals[8]) if vals[8] else 0
                 returnable_qty = quantity
+                size = vals[2] if len(vals) > 2 else ''
+                # 插入出库单明细
                 dbutil.insert_outbound_item(
                     outbound_id, product_id, quantity, amount, item_pay_status, paid_amount, debt_amount, returnable_qty
                 )
+                # 同步更新inventory表的size字段（如有变动）
+                dbutil.update_inventory_size_by_id(product_id, size)
                 item_ids.append(str(idx+1))
                 dbutil.decrease_inventory_by_id(product_id, quantity)
             # 写入debt_record

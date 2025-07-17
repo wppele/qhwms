@@ -1,0 +1,141 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
+from util import dbutil
+
+class SaleReturnPage(ttk.Frame):
+    def __init__(self, master):
+        super().__init__(master)
+        self.pack(fill=tk.BOTH, expand=True)
+        self.create_widgets()
+        self.refresh()
+
+    def create_widgets(self):
+        columns = ("order_no", "item_id", "product_no", "color", "size", "quantity", "amount", "return_qty")
+        self.tree = ttk.Treeview(self, columns=columns, show="headings")
+        self.tree.heading("order_no", text="订单号")
+        self.tree.heading("item_id", text="明细ID")
+        self.tree.heading("product_no", text="货号")
+        self.tree.heading("color", text="颜色")
+        self.tree.heading("size", text="尺码")
+        self.tree.heading("quantity", text="数量")
+        self.tree.heading("amount", text="金额")
+        self.tree.heading("return_qty", text="可退数量")
+        self.tree.column("order_no", width=130, anchor=tk.CENTER)
+        self.tree.column("item_id", width=70, anchor=tk.CENTER)
+        self.tree.column("product_no", width=100, anchor=tk.CENTER)
+        self.tree.column("color", width=80, anchor=tk.CENTER)
+        self.tree.column("size", width=70, anchor=tk.CENTER)
+        self.tree.column("quantity", width=70, anchor=tk.CENTER)
+        self.tree.column("amount", width=80, anchor=tk.E)
+        self.tree.column("return_qty", width=80, anchor=tk.CENTER)
+        self.tree.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        btn_frame = ttk.Frame(self)
+        btn_frame.pack(fill=tk.X, pady=5)
+        return_btn = ttk.Button(btn_frame, text="退货", command=self.do_return)
+        return_btn.pack(side=tk.LEFT, padx=10)
+        refresh_btn = ttk.Button(btn_frame, text="刷新", command=self.refresh)
+        refresh_btn.pack(side=tk.LEFT)
+
+    def refresh(self):
+        for row in self.tree.get_children():
+            self.tree.delete(row)
+        orders = dbutil.get_all_outbound_orders()
+        for order in orders:
+            outbound_id, order_no = order[0], order[1]
+            items = dbutil.get_outbound_items_by_order(outbound_id)
+            for item in items:
+                item_id, _, product_id, quantity, amount, *_ = item
+                inv = dbutil.get_inventory_by_id(product_id)
+                if inv:
+                    product_no = inv[2]
+                    color = inv[4]
+                    size = inv[3]
+                else:
+                    product_no = color = size = ''
+                # 获取可退数量（returnable_qty字段）
+                try:
+                    returnable_qty = item[8] if len(item) > 8 else quantity
+                except Exception:
+                    returnable_qty = quantity
+                if returnable_qty > 0:
+                    self.tree.insert('', tk.END, values=(order_no, item_id, product_no, color, size, quantity, amount, returnable_qty))
+
+    def do_return(self):
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showwarning("提示", "请先选择要退货的明细！")
+            return
+        item = self.tree.item(selected[0])
+        vals = item['values']
+        item_id = vals[1]
+        product_no = vals[2]
+        color = vals[3]
+        size = vals[4]
+        quantity = int(vals[5])
+        returnable_qty = int(vals[7])
+        # 弹窗输入退货数量（以可退数量为准）
+        return_qty = self.ask_return_qty(returnable_qty)
+        if return_qty is None or return_qty <= 0:
+            return
+        # 更新库存
+        inv = dbutil.get_inventory_by_id_by_fields(product_no, color, size)
+        if inv:
+            dbutil.increase_inventory_by_id(inv[0], return_qty)
+        else:
+            messagebox.showerror("错误", "未找到对应库存，无法退货")
+            return
+        # 更新出库明细表的returnable_qty字段和quantity字段
+        dbutil.decrease_returnable_qty_by_item_id(item_id, return_qty)
+        dbutil.decrease_outbound_item_quantity(item_id, return_qty)
+        # 新增退款记录到payment_record
+        order_no = vals[0]
+        outbound_id = dbutil.get_outbound_id_by_order_no(order_no)
+        from datetime import datetime
+        dbutil.insert_payment_record(
+            outbound_id,
+            str(item_id),
+            -abs(return_qty * float(vals[6]) / int(vals[5]) if int(vals[5]) else 0),
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "退款"
+        )
+        messagebox.showinfo("成功", f"退货成功，已将{product_no} {color} {size} 库存增加{return_qty}，并生成退款记录")
+        self.refresh()
+
+    def ask_return_qty(self, max_qty):
+        dialog = tk.Toplevel(self)
+        dialog.title("退货数量")
+        dialog.grab_set()
+        dialog.update_idletasks()
+        w, h = 260, 120
+        sw = dialog.winfo_screenwidth()
+        sh = dialog.winfo_screenheight()
+        x = (sw - w) // 2
+        y = (sh - h) // 2
+        dialog.geometry(f"{w}x{h}+{x}+{y}")
+        tk.Label(dialog, text=f"本单可退数量：{max_qty}", font=("微软雅黑", 11)).pack(pady=(12, 2))
+        frm = ttk.Frame(dialog)
+        frm.pack(pady=6)
+        tk.Label(frm, text="退货数量:", font=("微软雅黑", 11)).pack(side=tk.LEFT)
+        qty_var = tk.StringVar(value="1")
+        qty_entry = ttk.Entry(frm, textvariable=qty_var, width=8)
+        qty_entry.pack(side=tk.LEFT, padx=6)
+        result = {'qty': None}
+        def on_ok():
+            try:
+                val = int(qty_var.get())
+                if val < 1 or val > max_qty:
+                    raise ValueError
+            except Exception:
+                messagebox.showwarning("提示", f"请输入1~{max_qty}之间的整数！", parent=dialog)
+                return
+            result['qty'] = val
+            dialog.destroy()
+        btn = ttk.Button(dialog, text="确定", command=on_ok)
+        btn.pack(pady=8)
+        btn.update_idletasks()
+        # 保证按钮完全显示
+        dialog.minsize(w, h)
+        qty_entry.focus_set()
+        dialog.wait_window()
+        return result['qty']

@@ -30,10 +30,11 @@ def SettleLogPage(parent):
 
 def StockLogPage(parent):
     frame = ttk.Frame(parent)
-    columns = ("factory", "product_no", "color", "in_quantity", "action_type", "action_date")
+    columns = ("factory", "product_no", "size", "color", "in_quantity", "action_type", "action_date")
     headers = [
         ("factory", "厂家"),
         ("product_no", "货号"),
+        ("size", "尺码"),
         ("color", "颜色"),
         ("in_quantity", "入库数量"),
         ("action_type", "类型"),
@@ -48,6 +49,7 @@ def StockLogPage(parent):
         for row in tree.get_children():
             tree.delete(row)
         for row in dbutil.get_all_stock_log():
+            # row: factory, product_no, size, color, in_quantity, action_type, action_date
             tree.insert("", tk.END, values=row)
     frame.refresh = load_data
     load_data()

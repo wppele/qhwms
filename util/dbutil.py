@@ -1,5 +1,72 @@
-import sqlite3
 import os
+import sqlite3
+# 根据item_id减少outbound_item表中的quantity
+def decrease_outbound_item_quantity(item_id, qty):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE outbound_item SET quantity = quantity - ? WHERE item_id=? AND quantity >= ?", (qty, item_id, qty))
+    conn.commit()
+    conn.close()
+
+# 根据order_no查找outbound_id
+def get_outbound_id_by_order_no(order_no):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT outbound_id FROM outbound_order WHERE order_no=?", (order_no,))
+    row = cursor.fetchone()
+    conn.close()
+    return row[0] if row else None
+
+# 根据item_id减少returnable_qty
+def decrease_returnable_qty_by_item_id(item_id, qty):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE outbound_item SET returnable_qty = returnable_qty - ? WHERE item_id=? AND returnable_qty >= ?", (qty, item_id, qty))
+    conn.commit()
+    conn.close()
+
+# 根据货号、颜色、尺码查找库存
+def get_inventory_by_id_by_fields(product_no, color, size):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, factory, product_no, size, color, quantity FROM inventory WHERE product_no=? AND color=? AND size=?", (product_no, color, size))
+    row = cursor.fetchone()
+    conn.close()
+    return row
+
+# 增加库存数量
+def increase_inventory_by_id(inventory_id, quantity):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE inventory SET quantity = quantity + ? WHERE id=?", (quantity, inventory_id))
+    conn.commit()
+    conn.close()
+
+# 根据outbound_id获取出库单主表信息
+def get_outbound_order_by_id(outbound_id):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM outbound_order WHERE outbound_id=?", (outbound_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row
+
+# 根据customer_id获取客户信息
+def get_customer_by_id(customer_id):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM customer_info WHERE id=?", (customer_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row
+
+# 新增：根据id更新inventory表的size字段
+def update_inventory_size_by_id(inventory_id, size):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE inventory SET size=? WHERE id=?", (size, inventory_id))
+    conn.commit()
+    conn.close()
 # 通过product_id获取库存信息（货号/颜色/尺码等）
 def get_inventory_by_id(product_id):
     """根据product_id（即inventory.id）获取库存信息，返回(id, factory, product_no, size, color, quantity)"""

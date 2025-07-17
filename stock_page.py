@@ -202,10 +202,26 @@ def StockPage(parent, main_win):
         def do_return():
             dialog.destroy()
             stock_id = tree.selection()[0]
+            return_qty = int(values[5])
             # 写入返厂日志
             dbutil.insert_stock_log(
-                factory, product_no, size, color, int(values[5]), '返厂', utils.get_current_date()
+                factory, product_no, size, color, return_qty, '返厂', utils.get_current_date()
             )
+            # 返厂时，优先扣减所有厂家、货号、颜色一致的库存数量
+            inventory_rows = dbutil.get_all_inventory()
+            remain = return_qty
+            for row in inventory_rows:
+                # row: id, stock_id, factory, product_no, size, color, quantity
+                if row[2] == factory and row[3] == product_no and row[5] == color:
+                    inv_id = row[0]
+                    inv_qty = row[6]
+                    if inv_qty >= remain:
+                        dbutil.decrease_inventory_by_id(inv_id, remain)
+                        remain = 0
+                        break
+                    else:
+                        dbutil.decrease_inventory_by_id(inv_id, inv_qty)
+                        remain -= inv_qty
             # 同步删除库存表中对应记录
             dbutil.delete_inventory_by_stock_id(stock_id)
             dbutil.delete_stock_by_id(stock_id)
@@ -213,15 +229,30 @@ def StockPage(parent, main_win):
             if hasattr(main_win, 'refresh_logs'):
                 main_win.refresh_logs()
             load_stock_data()
-            tk.messagebox.showinfo("返厂", f"已将【{factory} {product_no} {color} {size}】标记为返厂，并同步删除库存！")
+            tk.messagebox.showinfo("返厂", f"已将【{factory} {product_no} {color} {size}】标记为返厂，并同步扣减库存！")
         def do_delete():
             dialog.destroy()
             stock_id = tree.selection()[0]
+            del_qty = int(values[5])
+            # 删除时，优先扣减所有厂家、货号、颜色一致的库存数量
+            inventory_rows = dbutil.get_all_inventory()
+            remain = del_qty
+            for row in inventory_rows:
+                if row[2] == factory and row[3] == product_no and row[5] == color:
+                    inv_id = row[0]
+                    inv_qty = row[6]
+                    if inv_qty >= remain:
+                        dbutil.decrease_inventory_by_id(inv_id, remain)
+                        remain = 0
+                        break
+                    else:
+                        dbutil.decrease_inventory_by_id(inv_id, inv_qty)
+                        remain -= inv_qty
             # 先删除库存表中对应记录
             dbutil.delete_inventory_by_stock_id(stock_id)
             dbutil.delete_stock_by_id(stock_id)
             load_stock_data()
-            tk.messagebox.showinfo("删除", "删除成功，库存已同步删除！")
+            tk.messagebox.showinfo("删除", "删除成功，库存已同步扣减！")
         def do_cancel():
             dialog.destroy()
         ttk.Button(btn_frame, text="返厂", width=8, command=do_return).pack(side=tk.LEFT, padx=8)
@@ -390,14 +421,64 @@ def StockPage(parent, main_win):
                     return
             try:
                 vars["total"].set(utils.calculate_total(vars["in_quantity"].get(), vars["price"].get()))
+                factory = vars['factory'].get().strip()
+                product_no = vars['product_no'].get().strip()
+                size = vars['size'].get().strip()
+                color = vars['color'].get().strip()
+                in_quantity = int(vars['in_quantity'].get())
+                price = float(vars['price'].get())
+                total = float(vars['total'].get())
+                # 检查库存中是否有相同厂家、货号、颜色的记录（不比较尺码）
+                inventory_rows = dbutil.get_all_inventory()
+                found = None
+                for row in inventory_rows:
+                    # row: id, stock_id, factory, product_no, size, color, quantity
+                    if row[2] == factory and row[3] == product_no and row[5] == color:
+                        found = row
+                        break
+                if found:
+                    # 有相同库存，合并数量，并合并尺码
+                    inventory_id = found[0]
+                    old_size = found[4] or ''
+                    new_size = size or ''
+                    # 合并尺码（去重，逗号分隔）
+                    size_set = set(s.strip() for s in (old_size + ',' + new_size).split(',') if s.strip())
+                    merged_size = ','.join(sorted(size_set))
+                    # 更新库存表的尺码字段和数量
+                    # 先更新尺码
+                    import sqlite3
+                    conn = sqlite3.connect(dbutil.DB_PATH)
+                    cursor = conn.cursor()
+                    cursor.execute("UPDATE inventory SET size=? WHERE id=?", (merged_size, inventory_id))
+                    conn.commit()
+                    conn.close()
+                    # 再增加数量
+                    dbutil.decrease_inventory_by_id(inventory_id, -in_quantity)  # 负数即增加
+                    # 写入入库日志
+                    dbutil.insert_stock_log(
+                        factory,
+                        product_no,
+                        merged_size,
+                        color,
+                        in_quantity,
+                        '入库',
+                        utils.get_current_date()
+                    )
+                    if hasattr(main_win, 'refresh_logs'):
+                        main_win.refresh_logs()
+                    tk.messagebox.showinfo("成功", f"已存在相同库存（尺码已合并为：{merged_size}），数量已增加 {in_quantity}！")
+                    dialog.destroy()
+                    load_stock_data()
+                    return
+                # 否则插入新库存
                 dbutil.insert_stock(
-                    vars['factory'].get().strip(),
-                    vars['product_no'].get().strip(),
-                    vars['size'].get().strip(),
-                    vars['color'].get().strip(),
-                    int(vars['in_quantity'].get()),
-                    float(vars['price'].get()),
-                    float(vars['total'].get())
+                    factory,
+                    product_no,
+                    size,
+                    color,
+                    in_quantity,
+                    price,
+                    total
                 )
                 # 获取最新入库id
                 stock_rows = dbutil.get_all_stock()
@@ -405,23 +486,22 @@ def StockPage(parent, main_win):
                     stock_id = stock_rows[0][0]  # 最新一条id
                     dbutil.insert_inventory_from_stock(
                         stock_id,
-                        vars['factory'].get().strip(),
-                        vars['product_no'].get().strip(),
-                        vars['size'].get().strip(),
-                        vars['color'].get().strip(),
-                        int(vars['in_quantity'].get())
+                        factory,
+                        product_no,
+                        size,
+                        color,
+                        in_quantity
                     )
                 # 写入入库日志
                 dbutil.insert_stock_log(
-                    vars['factory'].get().strip(),
-                    vars['product_no'].get().strip(),
-                    vars['size'].get().strip(),
-                    vars['color'].get().strip(),
-                    int(vars['in_quantity'].get()),
+                    factory,
+                    product_no,
+                    size,
+                    color,
+                    in_quantity,
                     '入库',
                     utils.get_current_date()
                 )
-                # 自动刷新日志页面
                 if hasattr(main_win, 'refresh_logs'):
                     main_win.refresh_logs()
                 tk.messagebox.showinfo("成功", "新增成功！")

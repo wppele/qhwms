@@ -5,7 +5,9 @@ from stock_page import StockPage
 from record_pages import SettleLogPage, StockLogPage
 from inventory_page import InventoryPage  # 新增库存页面导入
 from customer_page import CustomerPage
+
 from outbound_manage_page import OutboundManagePage
+from sale_return_page import SaleReturnPage
 
 def show_main_page(username, root=None):
     if root is not None:
@@ -92,10 +94,11 @@ def show_main_page(username, root=None):
     page_payment_record = PaymentRecordPage(content_frame)
     from arrears_settle_page import ArrearsSettlePage
     page_arrears_settle = ArrearsSettlePage(content_frame)
+    page_sale_return = SaleReturnPage(content_frame)
 
     # 页面切换逻辑
     def show_page(page):
-        for f in (page_stock, page_settle_log, page_stock_log, page_inventory, page_customer, page_outbound_manage, page_payment_record, page_arrears_settle):
+        for f in (page_stock, page_settle_log, page_stock_log, page_inventory, page_customer, page_outbound_manage, page_payment_record, page_arrears_settle, page_sale_return):
             f.pack_forget()
         page.pack(fill=tk.BOTH, expand=True)
         # 切换到日志页面时自动刷新
@@ -127,7 +130,7 @@ def show_main_page(username, root=None):
         elif sel == 'payment_record_query':
             show_page(page_payment_record)
         elif sel == 'sale_return':
-            tk.messagebox.showinfo('提示', '销售退换货功能待开发')
+            show_page(page_sale_return)
         elif sel == 'arrears_settle':
             show_page(page_arrears_settle)
     nav_tree.bind('<<TreeviewSelect>>', on_nav_select)
