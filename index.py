@@ -56,10 +56,10 @@ def show_main_page(username, root=None):
 
     # 销售管理为一级菜单，包含销售开单、出库单管理、销售退换货、收款结算
     sale_id = nav_tree.insert('', 'end', text='销售管理', open=False)
-    nav_tree.insert(sale_id, 'end', text='销售开单', iid='inventory')
+    nav_tree.insert(sale_id, 'end', text='开单|库存', iid='inventory')
     nav_tree.insert(sale_id, 'end', text='出库单管理', iid='outbound_manage')
     nav_tree.insert(sale_id, 'end', text='付款记录查询', iid='payment_record_query')
-    nav_tree.insert(sale_id, 'end', text='销售退换货', iid='sale_return')
+    nav_tree.insert(sale_id, 'end', text='销售退货', iid='sale_return')
     nav_tree.insert(sale_id, 'end', text='余款结算', iid='arrears_settle')
 
     # 基础信息管理为一级菜单，包含客户信息、账户管理

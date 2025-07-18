@@ -62,18 +62,19 @@ class PaymentRecordPage(ttk.Frame):
             return
         detail_win = tk.Toplevel(self)
         detail_win.title(f"订单明细 - 订单号：{order_no}")
-        columns = ("product_no", "size", "color", "quantity", "amount", "item_pay_status", "paid_amount", "debt_amount")
-        headers = ["货号", "尺码", "颜色", "数量", "金额", "支付状态", "已付", "待付"]
+        columns = ("product_no", "size", "color", "quantity", "price", "amount", "item_pay_status", "paid_amount", "debt_amount")
+        headers = ["货号", "尺码", "颜色", "数量", "单价", "金额", "支付状态", "已付", "待付"]
         tree = ttk.Treeview(detail_win, columns=columns, show="headings", height=10)
         for col, txt in zip(columns, headers):
             tree.heading(col, text=txt)
             tree.column(col, anchor=tk.CENTER, width=90)
         tree.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         for row in details:
-            # row: item_id, outbound_id, product_id, quantity, amount, item_pay_status, paid_amount, debt_amount, returnable_qty
+            # row: item_id, outbound_id, product_id, quantity, price, amount, item_pay_status, paid_amount, debt_amount, returnable_qty
             inv = dbutil.get_inventory_by_id(row[2])
             product_no = inv[2] if inv else ''
             size = inv[4] if inv else ''
             color = inv[5] if inv else ''
-            tree.insert('', tk.END, values=(product_no, size, color, row[3], row[4], row[5], row[6], row[7]))
+            price = row[4] if len(row) > 4 else 0.0
+            tree.insert('', tk.END, values=(product_no, size, color, row[3], f"{price:.2f}", row[5], row[6], row[7], row[8]))
         ttk.Button(detail_win, text="关闭", command=detail_win.destroy).pack(pady=8)

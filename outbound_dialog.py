@@ -88,8 +88,8 @@ def OutboundDialog(parent, cart_list):
                 color = inv[4] if inv else ''
                 size = inv[3] if inv else ''
                 quantity = item[3]
-                amount = item[4]
-                price = amount / quantity if quantity else 0.0
+                price = item[4] if len(item) > 4 else 0.0
+                amount = item[5] if len(item) > 5 else 0.0
                 detail_tree.insert('', tk.END, values=(product_no, color, size, quantity, f"{price:.2f}", f"{amount:.2f}"))
         tree.bind('<<TreeviewSelect>>', show_detail)
         for o in orders:
@@ -269,9 +269,9 @@ def OutboundDialog(parent, cart_list):
                 debt_amount = float(vals[8]) if vals[8] else 0
                 returnable_qty = quantity
                 size = vals[2] if len(vals) > 2 else ''
-                # 插入出库单明细
+                # 插入出库单明细，补充price字段
                 dbutil.insert_outbound_item(
-                    outbound_id, product_id, quantity, amount, item_pay_status, paid_amount, debt_amount, returnable_qty
+                    outbound_id, product_id, quantity, price, amount, item_pay_status, paid_amount, debt_amount, returnable_qty
                 )
                 # 同步更新inventory表的size字段（如有变动）
                 dbutil.update_inventory_size_by_id(product_id, size)

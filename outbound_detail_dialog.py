@@ -60,17 +60,16 @@ def show_outbound_detail(parent, order_no):
         color = inv[4] if inv else ''
         size = inv[3] if inv else ''
         quantity = item[3]
-        amount = item[4]
-        # 单价=合计/数量，避免除0
-        price = amount / quantity if quantity else 0.0
+        price = item[4] if len(item) > 4 else 0.0
+        amount = item[5] if len(item) > 5 else 0.0
         total_amount += amount
-        paid = item[6] if len(item) > 6 else 0
+        paid = item[7] if len(item) > 7 else 0
         total_paid += paid
-        debt = item[7] if len(item) > 7 else 0
+        debt = item[8] if len(item) > 8 else 0
         total_debt += debt
         tree.insert('', tk.END, values=(
             idx, product_no, color, size, quantity, f"{price:.2f}", f"{amount:.2f}",
-            "已付" if item[5]==1 else "欠款", f"{debt:.2f}"
+            "已付" if item[6]==1 else "欠款", f"{debt:.2f}"
         ))
     # 右下角统计和按钮
     bottom = ttk.Frame(win)

@@ -1,5 +1,37 @@
 import os
 import sqlite3
+
+# 删除出库明细表中的一条记录
+def delete_outbound_item_by_id(item_id):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM outbound_item WHERE item_id=?", (item_id,))
+    conn.commit()
+    conn.close()
+
+# 删除出库单主表中的一条记录
+def delete_outbound_order_by_id(outbound_id):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM outbound_order WHERE outbound_id=?", (outbound_id,))
+    conn.commit()
+    conn.close()
+
+# 同步更新出库单主表金额、已付、待付、支付状态
+def update_outbound_order_amount(outbound_id, total_amount, total_paid, total_debt, pay_status):
+    import sqlite3
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE outbound_order SET total_amount=?, total_paid=?, total_debt=?, pay_status=? WHERE outbound_id=?", (total_amount, total_paid, total_debt, pay_status, outbound_id))
+    conn.commit()
+    conn.close()
+# 更新出库明细表的总金额（amount）
+def update_outbound_item_amount(item_id, new_amount):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE outbound_item SET amount=? WHERE item_id=?", (new_amount, item_id))
+    conn.commit()
+    conn.close()
 # 根据item_id减少outbound_item表中的quantity
 def decrease_outbound_item_quantity(item_id, qty):
     conn = sqlite3.connect(DB_PATH)
@@ -93,14 +125,14 @@ def insert_outbound_order(order_no, customer_id, total_amount, pay_status, total
     return outbound_id
 
 # 新出库单明细插入
-def insert_outbound_item(outbound_id, product_id, quantity, amount, item_pay_status, paid_amount, debt_amount, returnable_qty):
-    """插入一条出库单明细记录（去除product_no、color、size）"""
+def insert_outbound_item(outbound_id, product_id, quantity, price, amount, item_pay_status, paid_amount, debt_amount, returnable_qty):
+    """插入一条出库单明细记录，含单价price"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO outbound_item (outbound_id, product_id, quantity, amount, item_pay_status, paid_amount, debt_amount, returnable_qty)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (outbound_id, product_id, quantity, amount, item_pay_status, paid_amount, debt_amount, returnable_qty))
+        INSERT INTO outbound_item (outbound_id, product_id, quantity, price, amount, item_pay_status, paid_amount, debt_amount, returnable_qty)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (outbound_id, product_id, quantity, price, amount, item_pay_status, paid_amount, debt_amount, returnable_qty))
     conn.commit()
     conn.close()
 
@@ -165,7 +197,7 @@ def get_outbound_items_by_order(outbound_id):
     """获取指定出库单的所有明细（outbound_item）"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT item_id, outbound_id, product_id, quantity, amount, item_pay_status, paid_amount, debt_amount, returnable_qty FROM outbound_item WHERE outbound_id=?", (outbound_id,))
+    cursor.execute("SELECT item_id, outbound_id, product_id, quantity, price, amount, item_pay_status, paid_amount, debt_amount, returnable_qty FROM outbound_item WHERE outbound_id=?", (outbound_id,))
     rows = cursor.fetchall()
     conn.close()
     return rows
@@ -332,13 +364,14 @@ def init_db():
             create_time TEXT
         )
     ''')
-    # 新出库单明细表（OutboundItem）
+    # 新出库单明细表（OutboundItem）增加price字段
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS outbound_item (
             item_id INTEGER PRIMARY KEY AUTOINCREMENT,
             outbound_id INTEGER NOT NULL,
             product_id INTEGER,
             quantity INTEGER NOT NULL,
+            price REAL NOT NULL DEFAULT 0,
             amount REAL NOT NULL,
             item_pay_status INTEGER NOT NULL DEFAULT 0, -- 0未付/1已付
             paid_amount REAL NOT NULL DEFAULT 0,
