@@ -1,8 +1,29 @@
 import tkinter as tk
 from tkinter import ttk
 from util import dbutil
+from tkinter import messagebox, filedialog
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
 
 def InventoryPage(parent):
+    # 鼠标悬停表格项时显示提示
+    def show_tooltip(event):
+        widget = event.widget
+        row_id = widget.identify_row(event.y)
+        if row_id:
+            if not hasattr(widget, '_tooltip_label'):
+                widget._tooltip_label = tk.Label(widget, text="双击出库", bg="#ffffe0", fg="#333", font=("微软雅黑", 10), relief=tk.SOLID, bd=1)
+            widget._tooltip_label.place_forget()
+            widget._tooltip_label.place(x=event.x, y=event.y+18)
+        else:
+            if hasattr(widget, '_tooltip_label'):
+                widget._tooltip_label.place_forget()
+
+    def hide_tooltip(event):
+        widget = event.widget
+        if hasattr(widget, '_tooltip_label'):
+            widget._tooltip_label.place_forget()
+
     frame = ttk.Frame(parent)
     # 供出库单页面调用，刷新库存和清空待出库数量
     def refresh():
@@ -55,6 +76,9 @@ def InventoryPage(parent):
     for col, text in headers:
         tree.heading(col, text=text)
         tree.column(col, anchor=tk.CENTER, width=90)
+
+    tree.bind('<Motion>', show_tooltip)
+    tree.bind('<Leave>', hide_tooltip)
     # 待出库数据结构
     cart_list = []  # [(row, 出库数量, 单价)]
     def load_data():
@@ -79,12 +103,14 @@ def InventoryPage(parent):
     def do_search():
         load_data()
     ttk.Button(search_frame, text="搜索", command=do_search, width=8).pack(side=tk.LEFT, padx=8)
-    # 右键菜单
-    menu = tk.Menu(tree, tearoff=0)
-    def on_outbound():
+    # 双击出库
+    def on_outbound(event):
+        row_id = tree.identify_row(event.y)
+        if not row_id:
+            return
+        tree.selection_set(row_id)
         selected = tree.selection()
         if not selected:
-            tk.messagebox.showwarning("提示", "请先选择要出库的库存记录！")
             return
         item = tree.item(selected[0])
         values = item['values']
@@ -125,14 +151,10 @@ def InventoryPage(parent):
                 error_label['text'] = "请输入有效数字！"
                 return
             # 加入待出库，附带单价
-            # values: [序号, factory, product_no, size, color, quantity]，需带上id
-            # 通过 tags 获取库存id
             inventory_id = None
-            if selected:
-                tags = tree.item(selected[0]).get('tags', [])
-                if tags:
-                    inventory_id = int(tags[0])
-            # 构造带id的values，便于后续出库单处理
+            tags = tree.item(selected[0]).get('tags', [])
+            if tags:
+                inventory_id = int(tags[0])
             values_with_id = [inventory_id] + list(values)
             cart_list.append((values_with_id, qty, price))
             cart_count.set(cart_count.get() + 1)
@@ -141,12 +163,70 @@ def InventoryPage(parent):
         ttk.Button(dialog, text="确定", command=confirm, width=10).pack(pady=10)
         qty_entry.focus_set()
         dialog.wait_window()
-    menu.add_command(label="出库", command=on_outbound)
-    def show_menu(event):
-        row_id = tree.identify_row(event.y)
-        if row_id:
-            tree.selection_set(row_id)
-            menu.tk_popup(event.x_root, event.y_root)
-    tree.bind("<Button-3>", show_menu)
+    tree.bind("<Double-1>", on_outbound)
     load_data()
+
+    def export_inventory():
+        all_rows = dbutil.get_all_inventory()
+        factory = search_factory.get().strip()
+        product_no = search_product_no.get().strip()
+        filtered = []
+        for r in all_rows:
+            if factory and factory not in (r[2] or ""):
+                continue
+            if product_no and product_no not in (r[3] or ""):
+                continue
+            filtered.append(r)
+        if not filtered:
+            messagebox.showinfo("导出库存", "没有可导出的库存数据！")
+            return
+        file_path = filedialog.asksaveasfilename(defaultextension=".pdf", filetypes=[("PDF文件", "*.pdf")], title="导出库存")
+        if not file_path:
+            return
+        c = canvas.Canvas(file_path, pagesize=A4)
+        width, height = A4
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        from util import utils
+        font_title, font_normal = utils.set_pdf_chinese_font(pdfmetrics, TTFont)
+        title = "库存列表"
+        c.setFont(font_title, 16)
+        # 标题居中
+        c.drawCentredString(width // 2, height - 50, title)
+        headers = ["序号", "厂家", "货号", "尺码", "颜色", "库存数量"]
+        c.setFont(font_normal, 11)
+        y = height - 80
+        col_widths = [40, 80, 80, 60, 60, 80]
+        # 表头（带线）
+        x = 60
+        from reportlab.lib.colors import HexColor
+        line_height = 20
+        c.setFont(font_normal, 11)
+        for i, h in enumerate(headers):
+            c.setStrokeColor(HexColor('#888888'))
+            c.rect(x, y, col_widths[i], line_height, stroke=1, fill=0)
+            c.setFillColor(HexColor('#000000'))
+            # 表头内容居中
+            c.drawCentredString(x + col_widths[i] // 2, y + line_height // 2, h)
+            x += col_widths[i]
+        y -= line_height
+        # 数据（带线）
+        for idx, row in enumerate(filtered, 1):
+            x = 60
+            values = [str(idx), row[2], row[3], row[4], row[5], str(row[6])]
+            for i, v in enumerate(values):
+                c.setStrokeColor(HexColor('#aaaaaa'))
+                c.rect(x, y, col_widths[i], line_height, stroke=1, fill=0)
+                c.setFillColor(HexColor('#000000'))
+                # 数据内容居中
+                c.drawCentredString(x + col_widths[i] // 2, y + line_height // 2, v)
+                x += col_widths[i]
+            y -= line_height
+            if y < 60:
+                c.showPage()
+                c.setFont(font_normal, 11)
+                y = height - 60
+        c.save()
+        messagebox.showinfo("导出成功", f"库存已导出到：{file_path}")
+    ttk.Button(search_frame, text="导出库存", command=export_inventory, width=10).pack(side=tk.LEFT, padx=4)
     return frame

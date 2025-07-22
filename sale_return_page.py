@@ -10,6 +10,17 @@ class SaleReturnPage(ttk.Frame):
         self.refresh()
 
     def create_widgets(self):
+        # 筛选区
+        filter_frame = ttk.Frame(self)
+        filter_frame.pack(fill=tk.X, padx=10, pady=8)
+        ttk.Label(filter_frame, text="订单号:").pack(side=tk.LEFT)
+        self.search_order_no = tk.StringVar()
+        ttk.Entry(filter_frame, textvariable=self.search_order_no, width=16).pack(side=tk.LEFT, padx=4)
+        ttk.Label(filter_frame, text="货号:").pack(side=tk.LEFT)
+        self.search_product_no = tk.StringVar()
+        ttk.Entry(filter_frame, textvariable=self.search_product_no, width=14).pack(side=tk.LEFT, padx=4)
+        ttk.Button(filter_frame, text="筛选", command=self.refresh, width=8).pack(side=tk.LEFT, padx=8)
+
         columns = ("order_no", "item_id", "product_no", "color", "size", "quantity", "price", "amount", "return_qty")
         self.tree = ttk.Treeview(self, columns=columns, show="headings")
         self.tree.heading("order_no", text="订单号")
@@ -31,17 +42,31 @@ class SaleReturnPage(ttk.Frame):
         self.tree.column("amount", width=80, anchor=tk.E)
         self.tree.column("return_qty", width=80, anchor=tk.CENTER)
         self.tree.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-
-        btn_frame = ttk.Frame(self)
-        btn_frame.pack(fill=tk.X, pady=5)
-        return_btn = ttk.Button(btn_frame, text="退货", command=self.do_return)
-        return_btn.pack(side=tk.LEFT, padx=10)
-        refresh_btn = ttk.Button(btn_frame, text="刷新", command=self.refresh)
-        refresh_btn.pack(side=tk.LEFT)
+        # 鼠标悬停表格项时显示提示
+        def show_tooltip(event):
+            widget = event.widget
+            row_id = widget.identify_row(event.y)
+            if row_id:
+                if not hasattr(widget, '_tooltip_label'):
+                    widget._tooltip_label = tk.Label(widget, text="双击退货", bg="#ffffe0", fg="#333", font=("微软雅黑", 10), relief=tk.SOLID, bd=1)
+                widget._tooltip_label.place_forget()
+                widget._tooltip_label.place(x=event.x, y=event.y+18)
+            else:
+                if hasattr(widget, '_tooltip_label'):
+                    widget._tooltip_label.place_forget()
+        def hide_tooltip(event):
+            widget = event.widget
+            if hasattr(widget, '_tooltip_label'):
+                widget._tooltip_label.place_forget()
+        self.tree.bind('<Motion>', show_tooltip)
+        self.tree.bind('<Leave>', hide_tooltip)
+        self.tree.bind('<Double-1>', self.on_double_click)
 
     def refresh(self):
         for row in self.tree.get_children():
             self.tree.delete(row)
+        order_no_kw = getattr(self, 'search_order_no', tk.StringVar()).get().strip() if hasattr(self, 'search_order_no') else ''
+        product_no_kw = getattr(self, 'search_product_no', tk.StringVar()).get().strip() if hasattr(self, 'search_product_no') else ''
         orders = dbutil.get_all_outbound_orders()
         for order in orders:
             outbound_id, order_no = order[0], order[1]
@@ -60,13 +85,18 @@ class SaleReturnPage(ttk.Frame):
                     returnable_qty = item[9] if len(item) > 9 else quantity
                 except Exception:
                     returnable_qty = quantity
+                # 筛选逻辑
+                if order_no_kw and order_no_kw not in str(order_no):
+                    continue
+                if product_no_kw and product_no_kw not in str(product_no):
+                    continue
                 if returnable_qty > 0:
                     self.tree.insert('', tk.END, values=(order_no, item_id, product_no, color, size, quantity, price, amount, returnable_qty))
 
-    def do_return(self):
+    def on_double_click(self, event):
+        item_id = None
         selected = self.tree.selection()
         if not selected:
-            messagebox.showwarning("提示", "请先选择要退货的明细！")
             return
         item = self.tree.item(selected[0])
         vals = item['values']

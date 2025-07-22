@@ -96,13 +96,14 @@ def StockPage(parent, main_win):
     ]
     tree = ttk.Treeview(frame, columns=columns, show="headings", height=12, selectmode="extended")
     tree.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-    # 右键菜单
-    menu = tk.Menu(tree, tearoff=0)
-    def on_settle_selected():
-        selected = tree.selection()
-        if not selected:
+    # 双击结账
+    def on_settle_selected(event=None):
+        row_id = tree.focus() if event is None else tree.identify_row(event.y)
+        if not row_id:
             tk.messagebox.showwarning("提示", "请先选择要结账的库存记录！")
             return
+        tree.selection_set(row_id)
+        selected = tree.selection()
         # 创建日期选择对话框
         date_dialog = tk.Toplevel(main_win)
         date_dialog.title("选择结账日期")
@@ -155,15 +156,27 @@ def StockPage(parent, main_win):
             date_dialog.destroy()
             tk.messagebox.showinfo("结账", f"所选记录已结账！\n结账日期: {settle_date}")
         ttk.Button(date_dialog, text="确定", command=confirm_settle).pack(pady=10)
-    menu.add_command(label="结账", command=on_settle_selected)
-    def show_menu(event):
+    tree.bind("<Double-1>", on_settle_selected)
+
+    # 鼠标悬停提示“双击结账”
+    settle_tip = tk.Toplevel(tree)
+    settle_tip.withdraw()
+    settle_tip.overrideredirect(True)
+    settle_label = tk.Label(settle_tip, text="双击结账", background="#ffffe0", relief=tk.SOLID, borderwidth=1, font=("微软雅黑", 9))
+    settle_label.pack(ipadx=4)
+    def show_settle_tip(event):
         row_id = tree.identify_row(event.y)
         if row_id:
-            # 如果右键行不在当前多选中，才切换 selection
-            if row_id not in tree.selection():
-                tree.selection_set(row_id)
-            menu.tk_popup(event.x_root, event.y_root)
-    tree.bind("<Button-3>", show_menu)
+            x = tree.winfo_rootx() + event.x + 30
+            y = tree.winfo_rooty() + event.y + 20
+            settle_tip.geometry(f"+{x}+{y}")
+            settle_tip.deiconify()
+        else:
+            settle_tip.withdraw()
+    def hide_settle_tip(event):
+        settle_tip.withdraw()
+    tree.bind('<Motion>', show_settle_tip)
+    tree.bind('<Leave>', hide_settle_tip)
     for col, text in headers:
         tree.heading(col, text=text)
         tree.column(col, anchor=tk.CENTER, width=80)

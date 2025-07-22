@@ -80,24 +80,8 @@ def show_outbound_detail(parent, order_no):
         from reportlab.pdfgen import canvas as pdfcanvas
         from reportlab.pdfbase import pdfmetrics
         from reportlab.pdfbase.ttfonts import TTFont
-        import os
-        # 注册中文字体，优先使用微软雅黑，其次黑体
-        font_path = None
-        for fname in ["msyh.ttf", "simhei.ttf"]:
-            for dir in [os.getcwd(), os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts")]:
-                fpath = os.path.join(dir, fname)
-                if os.path.exists(fpath):
-                    font_path = fpath
-                    break
-            if font_path:
-                break
-        if font_path:
-            pdfmetrics.registerFont(TTFont("zhfont", font_path))
-            font_title = "zhfont"
-            font_normal = "zhfont"
-        else:
-            font_title = "Helvetica-Bold"
-            font_normal = "Helvetica"
+        from util import utils
+        font_title, font_normal = utils.set_pdf_chinese_font(pdfmetrics, TTFont)
         # 获取当前显示模式
         show_kufang = is_kufang.get()
         if show_kufang:
@@ -125,18 +109,18 @@ def show_outbound_detail(parent, order_no):
         # PDF内容美化：标题绿色加粗，表头灰色边框居中，内容浅灰边框居中，字体微软雅黑，金额加粗
         from reportlab.lib.colors import HexColor
         top_y = pdf_height - 40
-        # 标题
+        # 标题居中
         c.setFont(font_title, 18)
         c.setFillColor(HexColor('#2a5d2a'))
-        c.drawString(40, top_y, "千辉鞋业出库单")
+        c.drawCentredString(600, top_y, "千辉鞋业出库单")
         c.setFillColor(HexColor('#000000'))
         c.setFont(font_normal, 12)
-        # 客户信息
-        c.drawString(40, top_y - line_height, f"订单号: {order_no}")
-        c.drawString(300, top_y - line_height, f"客户: {cust_name}")
-        c.drawString(520, top_y - line_height, f"地址: {cust_addr}")
-        c.drawString(40, top_y - line_height*2, f"出库日期: {order[7]}")
-        c.drawString(300, top_y - line_height*2, f"物流信息: {logistics}")
+        # 客户信息居中
+        c.drawCentredString(240, top_y - line_height, f"订单号: {order_no}")
+        c.drawCentredString(600, top_y - line_height, f"客户: {cust_name}")
+        c.drawCentredString(960, top_y - line_height, f"地址: {cust_addr}")
+        c.drawCentredString(240, top_y - line_height*2, f"出库日期: {order[7]}")
+        c.drawCentredString(600, top_y - line_height*2, f"物流信息: {logistics}")
         # 表头，拉开与客户信息距离（增加额外间距）
         y_table = top_y - line_height*3 - 16  # 增加16像素间距
         x = 40
@@ -145,7 +129,8 @@ def show_outbound_detail(parent, order_no):
             c.setStrokeColor(HexColor('#888888'))
             c.rect(x, y_table, col_widths[i], line_height, stroke=1, fill=0)
             c.setFillColor(HexColor('#000000'))
-            c.drawCentredString(x+col_widths[i]//2, y_table+line_height//2, h)
+            # 表头内容居中
+            c.drawCentredString(x + col_widths[i] // 2, y_table + line_height // 2, h)
             x += col_widths[i]
         # 明细
         y_row = y_table - line_height
@@ -172,10 +157,10 @@ def show_outbound_detail(parent, order_no):
                 if not show_kufang and i in [5,6,8]:
                     c.setFont(font_normal, 12)
                     c.setFont(font_title, 12)
-                    c.drawCentredString(x+col_widths[i]//2, y_row+line_height//2, str(val))
+                    c.drawCentredString(x + col_widths[i] // 2, y_row + line_height // 2, str(val))
                     c.setFont(font_normal, 12)
                 else:
-                    c.drawCentredString(x+col_widths[i]//2, y_row+line_height//2, str(val))
+                    c.drawCentredString(x + col_widths[i] // 2, y_row + line_height // 2, str(val))
                 x += col_widths[i]
             y_row -= line_height
         # 汇总，拉近与表格底部距离（减少间距）

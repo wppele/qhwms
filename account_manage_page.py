@@ -6,13 +6,13 @@ from util.utils import center_window
 class AccountManagePage(ttk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
-        ttk.Label(self, text="账户管理", font=("微软雅黑", 16, "bold"), foreground="#2a5d2a").pack(pady=(20, 10))
         btn_frame = ttk.Frame(self)
         btn_frame.pack(fill=tk.X, padx=24)
-        ttk.Button(btn_frame, text="新增用户", command=self.add_user).pack(side=tk.LEFT, padx=4)
-        ttk.Button(btn_frame, text="编辑用户", command=self.edit_user).pack(side=tk.LEFT, padx=4)
-        ttk.Button(btn_frame, text="删除用户", command=self.delete_user).pack(side=tk.LEFT, padx=4)
-        self.tree = ttk.Treeview(self, columns=("id", "username", "account", "role"), show="headings", height=10)
+        # 图标按钮（使用emoji，如需图片可后续替换为PhotoImage）
+        ttk.Button(btn_frame, text="➕", command=self.add_user, width=3).pack(side=tk.LEFT, padx=4)
+        ttk.Button(btn_frame, text="✏️", command=self.edit_user, width=3).pack(side=tk.LEFT, padx=4)
+        ttk.Button(btn_frame, text="🗑️", command=self.delete_user, width=3).pack(side=tk.LEFT, padx=4)
+        self.tree = ttk.Treeview(self, columns=("id", "username", "account", "role"), show="headings")
         self.tree.heading("id", text="ID")
         self.tree.heading("username", text="用户名")
         self.tree.heading("account", text="账号")
@@ -21,7 +21,7 @@ class AccountManagePage(ttk.Frame):
         self.tree.column("username", width=120, anchor=tk.CENTER)
         self.tree.column("account", width=120, anchor=tk.CENTER)
         self.tree.column("role", width=100, anchor=tk.CENTER)
-        self.tree.pack(fill=tk.X, padx=24, pady=8)
+        self.tree.pack(fill=tk.BOTH, expand=True, padx=24, pady=8)
         self.refresh()
 
     def refresh(self):

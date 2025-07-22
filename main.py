@@ -11,18 +11,22 @@ def show_login_window():
     root.title("登录")
     center_window(root, 300, 180)
 
+    # 顶部标题
+    ttk.Label(root, text="千辉鞋业仓库管理系统", font=("微软雅黑", 15, "bold"), foreground="#2a5caa").pack(pady=(18, 8))
+    # 用户名和密码同一行显示
+    form_frame = ttk.Frame(root)
+    form_frame.pack(pady=(5, 10))
     # 用户名
-    ttk.Label(root, text="用户名:").pack(pady=(20, 5))
+    ttk.Label(form_frame, text="用户名:").grid(row=0, column=0, padx=(0, 8), pady=5, sticky=tk.E)
     username_var = tk.StringVar()
-    username_entry = ttk.Entry(root, textvariable=username_var)
-    username_entry.pack()
+    username_entry = ttk.Entry(form_frame, textvariable=username_var, width=18)
+    username_entry.grid(row=0, column=1, pady=5)
     username_entry.focus_set()
-
     # 密码
-    ttk.Label(root, text="密码:").pack(pady=(10, 5))
+    ttk.Label(form_frame, text="密码:").grid(row=1, column=0, padx=(0, 8), pady=5, sticky=tk.E)
     password_var = tk.StringVar()
-    password_entry = ttk.Entry(root, textvariable=password_var, show="*")
-    password_entry.pack()
+    password_entry = ttk.Entry(form_frame, textvariable=password_var, show="*", width=18)
+    password_entry.grid(row=1, column=1, pady=5)
 
     def on_login():
         username = username_var.get()
@@ -34,7 +38,7 @@ def show_login_window():
         else:
             messagebox.showerror("登录失败", "用户名或密码错误！")
 
-    ttk.Button(root, text="登录", command=on_login).pack(pady=15)
+    ttk.Button(root, text="登录", command=on_login).pack(pady=(2, 5))
     root.bind('<Return>', lambda event: on_login())
     root.mainloop()
 

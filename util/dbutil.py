@@ -65,7 +65,33 @@ def get_inventory_by_id_by_fields(product_no, color, size):
     conn.close()
     return row
 
-## 上方已定义 increase_inventory_by_id、get_outbound_order_by_id、get_customer_by_id，无需重复定义
+def increase_inventory_by_id(inventory_id, quantity):
+    """根据库存主键id增加库存表(inventory)的数量"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE inventory SET quantity = quantity + ? WHERE id=?
+    ''', (quantity, inventory_id))
+    conn.commit()
+    conn.close()
+
+def get_outbound_order_by_id(outbound_id):
+    """根据出库单主表id获取记录"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT outbound_id, order_no, customer_id, total_amount, pay_status, total_paid, total_debt, create_time FROM outbound_order WHERE outbound_id=?", (outbound_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row
+
+def get_customer_by_id(customer_id):
+    """根据客户id获取客户信息"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, name, address, phone, logistics_info FROM customer_info WHERE id=?", (customer_id,))
+    row = cursor.fetchone()
+    conn.close()
+    return row
 
 # 新增：根据id更新inventory表的size字段
 def update_inventory_size_by_id(inventory_id, size):

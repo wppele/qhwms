@@ -10,7 +10,16 @@ class ArrearsSettlePage(ttk.Frame):
         self.refresh()
 
     def create_widgets(self):
-        # 新表头：序号、客户姓名、订单号、剩余欠款
+        # 筛选区
+        filter_frame = ttk.Frame(self)
+        filter_frame.pack(fill=tk.X, padx=10, pady=8)
+        ttk.Label(filter_frame, text="订单号:").pack(side=tk.LEFT)
+        self.search_order_no = tk.StringVar()
+        ttk.Entry(filter_frame, textvariable=self.search_order_no, width=16).pack(side=tk.LEFT, padx=4)
+        ttk.Label(filter_frame, text="客户:").pack(side=tk.LEFT)
+        self.search_customer = tk.StringVar()
+        ttk.Entry(filter_frame, textvariable=self.search_customer, width=14).pack(side=tk.LEFT, padx=4)
+        ttk.Button(filter_frame, text="筛选", command=self.refresh, width=8).pack(side=tk.LEFT, padx=8)
         columns = ("serial", "customer_name", "order_no", "remaining_debt")
         self.tree = ttk.Treeview(self, columns=columns, show="headings")
         self.tree.heading("serial", text="序号")
@@ -22,21 +31,36 @@ class ArrearsSettlePage(ttk.Frame):
         self.tree.column("order_no", width=140, anchor=tk.CENTER)
         self.tree.column("remaining_debt", width=100, anchor=tk.CENTER)
         self.tree.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-
-        btn_frame = ttk.Frame(self)
-        btn_frame.pack(fill=tk.X, pady=5)
-        settle_btn = ttk.Button(btn_frame, text="结算选中欠款", command=self.settle_selected)
-        settle_btn.pack(side=tk.LEFT, padx=10)
-        refresh_btn = ttk.Button(btn_frame, text="刷新", command=self.refresh)
-        refresh_btn.pack(side=tk.LEFT)
+        # 鼠标悬停表格项时显示提示
+        def show_tooltip(event):
+            widget = event.widget
+            row_id = widget.identify_row(event.y)
+            if row_id:
+                if not hasattr(widget, '_tooltip_label'):
+                    widget._tooltip_label = tk.Label(widget, text="双击结算", bg="#ffffe0", fg="#333", font=("微软雅黑", 10), relief=tk.SOLID, bd=1)
+                widget._tooltip_label.place_forget()
+                widget._tooltip_label.place(x=event.x, y=event.y+18)
+            else:
+                if hasattr(widget, '_tooltip_label'):
+                    widget._tooltip_label.place_forget()
+        def hide_tooltip(event):
+            widget = event.widget
+            if hasattr(widget, '_tooltip_label'):
+                widget._tooltip_label.place_forget()
+        self.tree.bind('<Motion>', show_tooltip)
+        self.tree.bind('<Leave>', hide_tooltip)
+        self.tree.bind('<Double-1>', self.on_double_click)
 
     def refresh(self):
         for row in self.tree.get_children():
             self.tree.delete(row)
+        order_no_kw = getattr(self, 'search_order_no', tk.StringVar()).get().strip() if hasattr(self, 'search_order_no') else ''
+        customer_kw = getattr(self, 'search_customer', tk.StringVar()).get().strip() if hasattr(self, 'search_customer') else ''
         debts = dbutil.get_all_debt_records()
         # debts: (debt_id, outbound_id, item_ids, remaining_debt)
         # 需要查客户姓名和订单号
-        for idx, debt in enumerate(debts, 1):
+        idx = 1
+        for debt in debts:
             debt_id, outbound_id, item_ids, remaining_debt = debt
             # 查找订单号和客户名
             order = dbutil.get_outbound_order_by_id(outbound_id)
@@ -49,12 +73,17 @@ class ArrearsSettlePage(ttk.Frame):
             else:
                 order_no = ""
                 customer_name = ""
+            # 筛选逻辑
+            if order_no_kw and order_no_kw not in str(order_no):
+                continue
+            if customer_kw and customer_kw not in str(customer_name):
+                continue
             self.tree.insert('', tk.END, values=(idx, customer_name, order_no, f"{remaining_debt:.2f}"), tags=(f"{debt_id}|{outbound_id}|{item_ids}",))
+            idx += 1
 
-    def settle_selected(self):
+    def on_double_click(self, event):
         selected = self.tree.selection()
         if not selected:
-            messagebox.showwarning("提示", "请先选择一条欠账记录！")
             return
         item = self.tree.item(selected[0])
         # 通过tag获取真实debt_id, outbound_id, item_ids
@@ -130,7 +159,13 @@ class ArrearsSettlePage(ttk.Frame):
         dialog = tk.Toplevel(self)
         dialog.title("结算欠款")
         dialog.grab_set()
-        dialog.geometry("320x140")
+        dialog.update_idletasks()
+        w, h = 320, 140
+        sw = dialog.winfo_screenwidth()
+        sh = dialog.winfo_screenheight()
+        x = (sw - w) // 2
+        y = (sh - h) // 2
+        dialog.geometry(f"{w}x{h}+{x}+{y}")
         tk.Label(dialog, text=f"本单剩余欠款：{max_debt}", font=("微软雅黑", 11)).pack(pady=(12, 2))
         frm = ttk.Frame(dialog)
         frm.pack(pady=6)

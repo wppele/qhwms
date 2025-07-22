@@ -1,12 +1,28 @@
 import tkinter as tk
 from tkinter import ttk
 from util import dbutil
-
+from outbound_detail_dialog import show_outbound_detail
 def OutboundManagePage(parent):
-    from outbound_detail_dialog import show_outbound_detail
+    # 鼠标悬停表格项时显示提示
+    def show_tooltip(event):
+        widget = event.widget
+        row_id = widget.identify_row(event.y)
+        if row_id:
+            if not hasattr(widget, '_tooltip_label'):
+                widget._tooltip_label = tk.Label(widget, text="双击查看出库详情", bg="#ffffe0", fg="#333", font=("微软雅黑", 10), relief=tk.SOLID, bd=1)
+            widget._tooltip_label.place_forget()
+            widget._tooltip_label.place(x=event.x, y=event.y+18)
+        else:
+            if hasattr(widget, '_tooltip_label'):
+                widget._tooltip_label.place_forget()
+
+    def hide_tooltip(event):
+        widget = event.widget
+        if hasattr(widget, '_tooltip_label'):
+            widget._tooltip_label.place_forget()
+
+
     frame = ttk.Frame(parent)
-    # 标题
-    ttk.Label(frame, text="出库单管理", font=("微软雅黑", 16, "bold"), foreground="#2a5d2a").pack(pady=(18, 8))
     # 搜索栏
     search_frame = ttk.Frame(frame)
     search_frame.pack(fill=tk.X, padx=10, pady=8)
@@ -35,6 +51,9 @@ def OutboundManagePage(parent):
     for col, text in headers:
         tree.heading(col, text=text)
         tree.column(col, anchor=tk.CENTER, width=120)
+
+    tree.bind('<Motion>', show_tooltip)
+    tree.bind('<Leave>', hide_tooltip)
 
     def on_row_double_click(event):
         item = tree.identify_row(event.y)
