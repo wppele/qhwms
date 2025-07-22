@@ -16,6 +16,7 @@ def show_login_window():
     username_var = tk.StringVar()
     username_entry = ttk.Entry(root, textvariable=username_var)
     username_entry.pack()
+    username_entry.focus_set()
 
     # 密码
     ttk.Label(root, text="密码:").pack(pady=(10, 5))
@@ -34,6 +35,7 @@ def show_login_window():
             messagebox.showerror("登录失败", "用户名或密码错误！")
 
     ttk.Button(root, text="登录", command=on_login).pack(pady=15)
+    root.bind('<Return>', lambda event: on_login())
     root.mainloop()
 
 

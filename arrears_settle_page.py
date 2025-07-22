@@ -108,7 +108,6 @@ class ArrearsSettlePage(ttk.Frame):
         cursor.execute("SELECT item_id, amount FROM outbound_item WHERE outbound_id=?", (outbound_id,))
         items = cursor.fetchall()
         # 按比例分配已付金额到明细
-        remain_paid = paid
         for item_id, amount in items:
             if paid >= total and total > 0:
                 paid_amt = amount

@@ -117,6 +117,8 @@ def OutboundDialog(parent, cart_list):
     for col, text in headers:
         tree.heading(col, text=text)
         tree.column(col, anchor=tk.CENTER, width=90)
+    # 隐藏 product_id 列
+    tree['displaycolumns'] = [col for col, _ in headers]
     # 填充表格，cart_list: [(inv_row, qty, price)]，inv_row[0]=product_id
     for v, qty, price in cart_list:
         inv = dbutil.get_inventory_by_id(v[0])
@@ -228,8 +230,7 @@ def OutboundDialog(parent, cart_list):
     # 底部按钮
     btn_frame = ttk.Frame(dialog)
     btn_frame.pack(pady=18)
-
-    outbound_id_holder = {'id': None, 'item_ids': [], 'item_amounts': []}
+    
     def save_order():
         # 校验
         if not customer_var.get():
@@ -338,7 +339,7 @@ def OutboundDialog(parent, cart_list):
             remain -= pay_this
         calc_total()
         messagebox.showinfo("成功", f"已结账，实际支付：{pay_amount - remain:.2f} 元\n如需关闭请点击“生成出库单”")
-
-    ttk.Button(btn_frame, text="生成出库单", command=on_submit, width=16).pack(side=tk.LEFT, padx=8)
     ttk.Button(btn_frame, text="保存并结账", command=on_submit_and_pay, width=16).pack(side=tk.LEFT, padx=8)
+    ttk.Button(btn_frame, text="生成出库单", command=on_submit, width=16).pack(side=tk.LEFT, padx=8)
+
     dialog.wait_window()

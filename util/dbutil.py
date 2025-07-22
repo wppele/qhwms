@@ -1,4 +1,3 @@
-import os
 import sqlite3
 
 # 删除出库明细表中的一条记录
@@ -66,31 +65,7 @@ def get_inventory_by_id_by_fields(product_no, color, size):
     conn.close()
     return row
 
-# 增加库存数量
-def increase_inventory_by_id(inventory_id, quantity):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("UPDATE inventory SET quantity = quantity + ? WHERE id=?", (quantity, inventory_id))
-    conn.commit()
-    conn.close()
-
-# 根据outbound_id获取出库单主表信息
-def get_outbound_order_by_id(outbound_id):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM outbound_order WHERE outbound_id=?", (outbound_id,))
-    row = cursor.fetchone()
-    conn.close()
-    return row
-
-# 根据customer_id获取客户信息
-def get_customer_by_id(customer_id):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM customer_info WHERE id=?", (customer_id,))
-    row = cursor.fetchone()
-    conn.close()
-    return row
+## 上方已定义 increase_inventory_by_id、get_outbound_order_by_id、get_customer_by_id，无需重复定义
 
 # 新增：根据id更新inventory表的size字段
 def update_inventory_size_by_id(inventory_id, size):
@@ -224,7 +199,7 @@ def get_all_debt_records():
     return rows
 
 
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'qhwms.db')
+DB_PATH = r'D:\qhwms.db'
 
 def init_db():
     """初始化数据库，创建所有表结构，插入默认管理员账户"""
@@ -241,7 +216,8 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT NOT NULL,
             account TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL
+            password TEXT NOT NULL,
+            role INTEGER NOT NULL DEFAULT 1 -- 0:管理员, 1:库管
         )
     ''')
     # 创建库存表（stock，去掉available_quantity）
@@ -403,11 +379,11 @@ def init_db():
         )
     ''')
     # 检查admin账户是否存在，不存在则插入
-    cursor.execute('SELECT * FROM users WHERE account=?', ("a",))
+    cursor.execute('SELECT * FROM users WHERE account=?', ("admin",))
     if not cursor.fetchone():
         cursor.execute('''
-            INSERT INTO users (username, account, password) VALUES (?, ?, ?)
-        ''', ("管理员", "a", "a"))
+            INSERT INTO users (username, account, password, role) VALUES (?, ?, ?, ?)
+        ''', ("管理员", "admin", "admin", 0))
     conn.commit()
     conn.close()
 
@@ -589,6 +565,70 @@ def delete_customer(cid):
     cursor.execute("DELETE FROM customer_info WHERE id=?", (cid,))
     conn.commit()
     conn.close()
+
+
+# 用户表增删改查
+def insert_user(username, account, password, role=1):
+    """新增用户，默认库管权限（role=1），管理员为0"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO users (username, account, password, role) VALUES (?, ?, ?, ?)", (username, account, password, role))
+    conn.commit()
+    conn.close()
+
+def update_user(user_id, username=None, account=None, password=None, role=None):
+    """修改用户信息，参数为None则不更新该字段"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    fields = []
+    values = []
+    if username is not None:
+        fields.append("username=?")
+        values.append(username)
+    if account is not None:
+        fields.append("account=?")
+        values.append(account)
+    if password is not None:
+        fields.append("password=?")
+        values.append(password)
+    if role is not None:
+        fields.append("role=?")
+        values.append(role)
+    if not fields:
+        conn.close()
+        return False
+    sql = f"UPDATE users SET {', '.join(fields)} WHERE id=?"
+    values.append(user_id)
+    cursor.execute(sql, tuple(values))
+    conn.commit()
+    conn.close()
+    return True
+
+def delete_user(user_id):
+    """根据id删除用户"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM users WHERE id=?", (user_id,))
+    conn.commit()
+    conn.close()
+
+def get_user_by_id(user_id):
+    """根据id获取用户信息"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, username, account, role FROM users WHERE id=?", (user_id,))
+    user = cursor.fetchone()
+    conn.close()
+    return user
+
+def get_all_users():
+    """获取所有用户信息"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, username, account, role FROM users ORDER BY id DESC")
+    users = cursor.fetchall()
+    conn.close()
+    return users
 
 if __name__ == "__main__":
     init_db()

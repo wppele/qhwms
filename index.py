@@ -5,9 +5,11 @@ from stock_page import StockPage
 from record_pages import SettleLogPage, StockLogPage
 from inventory_page import InventoryPage  # 新增库存页面导入
 from customer_page import CustomerPage
+from account_manage_page import AccountManagePage
 
 from outbound_manage_page import OutboundManagePage
 from sale_return_page import SaleReturnPage
+from welcome_page import WelcomeFrame
 
 def show_main_page(username, root=None):
     if root is not None:
@@ -83,12 +85,17 @@ def show_main_page(username, root=None):
     content_frame = ttk.Frame(main_frame)
     content_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
+    # 欢迎页Frame
+    welcome_frame = WelcomeFrame(content_frame)
+    welcome_frame.pack(fill=tk.BOTH, expand=True)
+
     # 各功能页面Frame
     page_stock = StockPage(content_frame, main_win)
     page_settle_log = SettleLogPage(content_frame)
     page_stock_log = StockLogPage(content_frame)
     page_inventory = InventoryPage(content_frame)  # 新增库存页面实例
     page_customer = CustomerPage(content_frame)
+    page_account_manage = AccountManagePage(content_frame)
     page_outbound_manage = OutboundManagePage(content_frame)
     from payment_record_page import PaymentRecordPage
     page_payment_record = PaymentRecordPage(content_frame)
@@ -98,12 +105,16 @@ def show_main_page(username, root=None):
 
     # 页面切换逻辑
     def show_page(page):
-        for f in (page_stock, page_settle_log, page_stock_log, page_inventory, page_customer, page_outbound_manage, page_payment_record, page_arrears_settle, page_sale_return):
+        for f in (welcome_frame, page_stock, page_settle_log, page_stock_log, page_inventory, page_customer, page_outbound_manage, page_payment_record, page_arrears_settle, page_sale_return, page_account_manage):
             f.pack_forget()
         page.pack(fill=tk.BOTH, expand=True)
         # 切换到日志页面时自动刷新
         if hasattr(page, 'refresh'):
             page.refresh()
+
+    # 默认显示欢迎页
+    show_page(welcome_frame)
+    # 不选中任何菜单项，等用户点击后再切换页面
 
     # 提供全局刷新方法供库存页面调用
     main_win.refresh_logs = lambda: [page_settle_log.refresh(), page_stock_log.refresh()]
@@ -124,7 +135,7 @@ def show_main_page(username, root=None):
         elif sel == 'customer_info':
             show_page(page_customer)
         elif sel == 'account_manage':
-            tk.messagebox.showinfo('提示', '账户管理功能待开发')
+            show_page(page_account_manage)
         elif sel == 'outbound_manage':
             show_page(page_outbound_manage)
         elif sel == 'payment_record_query':
@@ -134,9 +145,7 @@ def show_main_page(username, root=None):
         elif sel == 'arrears_settle':
             show_page(page_arrears_settle)
     nav_tree.bind('<<TreeviewSelect>>', on_nav_select)
-    # 默认显示采购入库
-    nav_tree.selection_set('up_stock')
-    show_page(page_stock)
+    # 不自动选中任何菜单项
 
     # 退出按钮关闭所有窗口
     def quit_all():
