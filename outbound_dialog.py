@@ -19,7 +19,12 @@ def OutboundDialog(parent, cart_list):
     tk.Label(dialog, text="千辉鞋业出库单", font=("微软雅黑", 16, "bold"), fg="#2a5d2a").pack(pady=(18, 8))
     # 订单号、客户、出库日期一行显示
     now = datetime.datetime.now()
-    order_no = f"QH{now.strftime('%Y%m%d%H%M%S')}"
+    today_str = now.strftime('%Y%m%d')
+    # 查询当天已有订单数
+    all_orders = dbutil.get_all_outbound_orders()
+    today_orders = [o for o in all_orders if o[1].startswith(f"QH{today_str}")]
+    order_seq = len(today_orders) + 1
+    order_no = f"QH{today_str}{order_seq:04d}"
     top_row = ttk.Frame(dialog)
     top_row.pack(fill=tk.X, padx=30, pady=2)
     ttk.Label(top_row, text="订单号:", font=("微软雅黑", 11)).pack(side=tk.LEFT)
