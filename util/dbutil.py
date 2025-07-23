@@ -1,5 +1,5 @@
 import sqlite3
-
+import os
 # 删除出库明细表中的一条记录
 def delete_outbound_item_by_id(item_id):
     conn = sqlite3.connect(DB_PATH)
@@ -225,10 +225,17 @@ def get_all_debt_records():
     return rows
 
 
-DB_PATH = r'D:\qhwms.db'
+
+DB_PATH = r'C:\qhwms\qhwms.db'
+
+def ensure_db_dir():
+    db_dir = os.path.dirname(DB_PATH)
+    if not os.path.exists(db_dir):
+        os.makedirs(db_dir)
 
 def init_db():
     """初始化数据库，创建所有表结构，插入默认管理员账户"""
+    ensure_db_dir()
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     # 创建用户表
