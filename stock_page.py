@@ -441,6 +441,20 @@ def StockPage(parent, main_win):
                 in_quantity = int(vars['in_quantity'].get())
                 price = float(vars['price'].get())
                 total = float(vars['total'].get())
+                # 先插入入库表（无论是否合并库存，入库表都要有记录）
+                dbutil.insert_stock(
+                    factory,
+                    product_no,
+                    size,
+                    color,
+                    in_quantity,
+                    price,
+                    total
+                )
+                # 获取最新入库id
+                stock_rows = dbutil.get_all_stock()
+                if stock_rows:
+                    stock_id = stock_rows[0][0]  # 最新一条id
                 # 检查库存中是否有相同厂家、货号、颜色的记录（不比较尺码）
                 inventory_rows = dbutil.get_all_inventory()
                 found = None
@@ -458,7 +472,6 @@ def StockPage(parent, main_win):
                     size_set = set(s.strip() for s in (old_size + ',' + new_size).split(',') if s.strip())
                     merged_size = ','.join(sorted(size_set))
                     # 更新库存表的尺码字段和数量
-                    # 先更新尺码
                     import sqlite3
                     conn = sqlite3.connect(dbutil.DB_PATH)
                     cursor = conn.cursor()
@@ -480,23 +493,8 @@ def StockPage(parent, main_win):
                     if hasattr(main_win, 'refresh_logs'):
                         main_win.refresh_logs()
                     tk.messagebox.showinfo("成功", f"已存在相同库存（尺码已合并为：{merged_size}），数量已增加 {in_quantity}！")
-                    dialog.destroy()
-                    load_stock_data()
-                    return
-                # 否则插入新库存
-                dbutil.insert_stock(
-                    factory,
-                    product_no,
-                    size,
-                    color,
-                    in_quantity,
-                    price,
-                    total
-                )
-                # 获取最新入库id
-                stock_rows = dbutil.get_all_stock()
-                if stock_rows:
-                    stock_id = stock_rows[0][0]  # 最新一条id
+                else:
+                    # 否则插入新库存
                     dbutil.insert_inventory_from_stock(
                         stock_id,
                         factory,
@@ -505,24 +503,33 @@ def StockPage(parent, main_win):
                         color,
                         in_quantity
                     )
-                # 写入入库日志
-                dbutil.insert_stock_log(
-                    factory,
-                    product_no,
-                    size,
-                    color,
-                    in_quantity,
-                    '入库',
-                    utils.get_current_date()
-                )
-                if hasattr(main_win, 'refresh_logs'):
-                    main_win.refresh_logs()
-                tk.messagebox.showinfo("成功", "新增成功！")
-                dialog.destroy()
+                    # 写入入库日志
+                    dbutil.insert_stock_log(
+                        factory,
+                        product_no,
+                        size,
+                        color,
+                        in_quantity,
+                        '入库',
+                        utils.get_current_date()
+                    )
+                    if hasattr(main_win, 'refresh_logs'):
+                        main_win.refresh_logs()
+                    tk.messagebox.showinfo("成功", "新增成功！")
+                # 新增成功后不关闭对话框，保留厂家、货号、尺码，其余字段清空
                 load_stock_data()
+                # 清空除厂家、货号、尺码外的字段
+                vars['color'].set("")
+                vars['in_quantity'].set("")
+                vars['price'].set("")
+                vars['total'].set("")
+                entry_refs['color'].focus_set()
             except Exception as e:
                 error_label['text'] = str(e)
-        ttk.Button(dialog, text="确定新增", command=on_add, width=12).grid(row=5, column=0, columnspan=4, pady=10)
+        add_btn = ttk.Button(dialog, text="确定新增", command=on_add, width=12)
+        add_btn.grid(row=5, column=0, columnspan=4, pady=10)
+        # 绑定回车键到on_add
+        dialog.bind('<Return>', lambda event: on_add())
         error_label = tk.Label(dialog, text="", fg="red", font=("微软雅黑", 10))
         error_label.grid(row=6, column=0, columnspan=4, pady=(0, 5))
         dialog.after(100, lambda: entry_refs['factory'].focus_set())

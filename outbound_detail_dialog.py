@@ -84,12 +84,20 @@ def show_outbound_detail(parent, order_no):
         font_title, font_normal = utils.set_pdf_chinese_font(pdfmetrics, TTFont)
         # 获取当前显示模式
         show_kufang = is_kufang.get()
+        page_width = 1200
+        margin = 40
         if show_kufang:
             pdf_headers = ["序号", "货号", "颜色", "尺码", "数量"]
-            col_widths = [60, 160, 100, 100, 100]
+            col_count = len(pdf_headers)
+            col_width = (page_width - margin * 2) // col_count
+            col_widths = [col_width] * (col_count - 1)
+            col_widths.append(page_width - margin * 2 - col_width * (col_count - 1))  # 最后一列补齐
         else:
             pdf_headers = ["序号", "货号", "颜色", "尺码", "数量", "单价", "金额", "支付", "余款"]
-            col_widths = [60, 160, 100, 100, 100, 120, 120, 100, 120]
+            col_count = len(pdf_headers)
+            col_width = (page_width - margin * 2) // col_count
+            col_widths = [col_width] * (col_count - 1)
+            col_widths.append(page_width - margin * 2 - col_width * (col_count - 1))
         # 先计算PDF高度
         line_height = 32
         y_table = 40 + line_height*2 + line_height*2 + line_height*3  # 标题+客户+物流+表头
@@ -105,25 +113,23 @@ def show_outbound_detail(parent, order_no):
             title='导出PDF')
         if not file_path:
             return
-        c = pdfcanvas.Canvas(file_path, pagesize=(1200, pdf_height))
+        c = pdfcanvas.Canvas(file_path, pagesize=(page_width, pdf_height))
         # PDF内容美化：标题绿色加粗，表头灰色边框居中，内容浅灰边框居中，字体微软雅黑，金额加粗
         from reportlab.lib.colors import HexColor
-        top_y = pdf_height - 40
+        top_y = pdf_height - margin
         # 标题居中
         c.setFont(font_title, 18)
         c.setFillColor(HexColor('#2a5d2a'))
-        c.drawCentredString(600, top_y, "千辉鞋业出库单")
+        c.drawCentredString(page_width // 2, top_y, "千辉鞋业出库单")
         c.setFillColor(HexColor('#000000'))
         c.setFont(font_normal, 12)
-        # 客户信息居中
-        c.drawCentredString(240, top_y - line_height, f"订单号: {order_no}")
-        c.drawCentredString(600, top_y - line_height, f"客户: {cust_name}")
-        c.drawCentredString(960, top_y - line_height, f"地址: {cust_addr}")
-        c.drawCentredString(240, top_y - line_height*2, f"出库日期: {order[7]}")
-        c.drawCentredString(600, top_y - line_height*2, f"物流信息: {logistics}")
+        # 客户信息整体居中
+        info_y = top_y - line_height
+        info_line = f"订单号: {order_no}    客户: {cust_name}    地址: {cust_addr}    出库日期: {order[7]}    物流信息: {logistics}"
+        c.drawCentredString(page_width // 2, info_y, info_line)
         # 表头，拉开与客户信息距离（增加额外间距）
-        y_table = top_y - line_height*3 - 16  # 增加16像素间距
-        x = 40
+        y_table = top_y - line_height*3 + 10
+        x = margin
         c.setFont(font_normal, 12)
         for i, h in enumerate(pdf_headers):
             c.setStrokeColor(HexColor('#888888'))
