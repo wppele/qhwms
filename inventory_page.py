@@ -6,31 +6,12 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 
 def InventoryPage(parent):
-    # 鼠标悬停表格项时显示提示
-    def show_tooltip(event):
-        widget = event.widget
-        row_id = widget.identify_row(event.y)
-        if row_id:
-            if not hasattr(widget, '_tooltip_label'):
-                widget._tooltip_label = tk.Label(widget, text="双击出库", bg="#ffffe0", fg="#333", font=("微软雅黑", 10), relief=tk.SOLID, bd=1)
-            widget._tooltip_label.place_forget()
-            widget._tooltip_label.place(x=event.x, y=event.y+18)
-        else:
-            if hasattr(widget, '_tooltip_label'):
-                widget._tooltip_label.place_forget()
-
-    def hide_tooltip(event):
-        widget = event.widget
-        if hasattr(widget, '_tooltip_label'):
-            widget._tooltip_label.place_forget()
 
     frame = ttk.Frame(parent)
-    # 供出库单页面调用，刷新库存和清空待出库数量
+    # 供出库单页面调用，仅刷新库存
     def refresh():
         load_data()
         cart_list.clear()
-        cart_count.set(0)
-        update_cart_btn()
     frame.refresh = refresh
     # 搜索栏
     search_frame = ttk.Frame(frame)
@@ -42,25 +23,99 @@ def InventoryPage(parent):
     search_product_no = tk.StringVar()
     ttk.Entry(search_frame, textvariable=search_product_no, width=12).pack(side=tk.LEFT, padx=4)
     # 右侧待出库按钮
-    cart_count = tk.IntVar(value=0)
-    cart_btn_var = tk.StringVar()
-    def update_cart_btn():
-        cart_btn_var.set(f"待出库{cart_count.get()}")
-    def show_cart():
-        if not cart_list:
-            tk.messagebox.showinfo("待出库", "当前待出库为空！")
-            return
-        # 弹出出库单页面
+    # "制作出库单"按钮，弹出空白出库单
+    def show_make_outbound():
         try:
             from outbound_dialog import OutboundDialog
         except ImportError:
             tk.messagebox.showerror("错误", "未找到出库单页面模块！")
             return
-        OutboundDialog(frame, cart_list)
-    cart_btn = tk.Button(search_frame, textvariable=cart_btn_var, width=12, command=show_cart,
+        OutboundDialog(frame, [])  # 传空列表，弹出空白出库单
+
+    def show_draft_list():
+        try:
+            from outbound_dialog import OutboundDialog
+        except ImportError:
+            tk.messagebox.showerror("错误", "未找到出库单页面模块！")
+            return
+        # 查询所有暂存出库单（从 draft_order 表获取）
+        drafts = dbutil.get_all_draft_orders()  # [(id, customer_id, total, remark, create_time)]
+        win = tk.Toplevel(frame)
+        win.title("暂存出库单列表")
+        win.geometry("900x400")
+        columns = ("draft_id", "customer", "total", "create_time")
+        tree = ttk.Treeview(win, columns=columns, show="headings", height=12)
+        tree.pack(fill=tk.BOTH, expand=True, padx=16, pady=8)
+        tree.heading("draft_id", text="暂存单ID")
+        tree.heading("customer", text="客户")
+        tree.heading("total", text="金额")
+        tree.heading("create_time", text="创建时间")
+        customer_names = []
+        for o in drafts:
+            customer_name = ''
+            try:
+                customer = dbutil.get_customer_by_id(o[1])
+                customer_name = customer[1] if customer else ''
+            except Exception:
+                pass
+            customer_names.append(customer_name)
+            tree.insert('', tk.END, values=(o[0], customer_name, f"{o[2]:.2f}", o[4]))
+        def on_double_click(event):
+            sel = tree.selection()
+            if not sel:
+                return
+            idx = tree.index(sel[0])
+            draft = drafts[idx]
+            customer_name = customer_names[idx]
+            # 获取明细（从 draft_item 表获取）
+            items = dbutil.get_draft_items_by_order(draft[0])
+            cart_list = []
+            for item in items:
+                inv = dbutil.get_inventory_by_id(item[2])
+                cart_list.append((inv, item[3], item[4]))
+            win.destroy()
+            # 进入出库单时自动带出客户姓名
+            # 直接传递客户姓名给弹窗
+            OutboundDialog(frame, cart_list, customer_name)
+        tree.bind('<Double-1>', on_double_click)
+
+        # 鼠标悬停时显示“双击编辑”提示
+        def on_motion(event):
+            tree_tooltip = getattr(tree, '_tooltip', None)
+            region = tree.identify('region', event.x, event.y)
+            if region == 'cell':
+                if not tree_tooltip:
+                    tree._tooltip = tk.Label(win, text="双击编辑", bg="#ffffe0", fg="#333", font=("微软雅黑", 10), relief=tk.SOLID, bd=1)
+                tooltip = tree._tooltip
+                tooltip.place(x=event.x_root - win.winfo_rootx() + 10, y=event.y_root - win.winfo_rooty() + 10)
+            else:
+                if tree_tooltip:
+                    tree_tooltip.place_forget()
+        tree.bind('<Motion>', on_motion)
+
+        def delete_selected_draft():
+            sel = tree.selection()
+            if not sel:
+                messagebox.showinfo("提示", "请先选择要删除的暂存单！")
+                return
+            idx = tree.index(sel[0])
+            draft = drafts[idx]
+            draft_id = draft[0]
+            dbutil.delete_draft_order(draft_id)
+            tree.delete(sel[0])
+            messagebox.showinfo("删除成功", "暂存单已删除！")
+
+        btn_frame = ttk.Frame(win)
+        btn_frame.pack(pady=8)
+        ttk.Button(btn_frame, text="删除选中暂存单", command=delete_selected_draft).pack(side=tk.LEFT, padx=8)
+        ttk.Button(btn_frame, text="关闭", command=win.destroy).pack(side=tk.LEFT, padx=8)
+
+    draft_btn = tk.Button(search_frame, text="暂存单", width=10, command=show_draft_list,
+                        bg="#e6e6e6", activebackground="#cccccc", fg="#333333", relief=tk.RAISED, bd=2, font=("微软雅黑", 10))
+    draft_btn.pack(side=tk.RIGHT, padx=4)
+    make_btn = tk.Button(search_frame, text="制作出库单", width=14, command=show_make_outbound,
                         bg="#b7f7b0", activebackground="#a0e89c", fg="#1a3d1a", relief=tk.RAISED, bd=2, font=("微软雅黑", 10, "bold"))
-    cart_btn.pack(side=tk.RIGHT, padx=10)
-    update_cart_btn()
+    make_btn.pack(side=tk.RIGHT, padx=10)
     # 表格区
     columns = ("no", "factory", "product_no", "size", "color", "quantity")
     headers = [
@@ -76,10 +131,7 @@ def InventoryPage(parent):
     for col, text in headers:
         tree.heading(col, text=text)
         tree.column(col, anchor=tk.CENTER, width=90)
-
-    tree.bind('<Motion>', show_tooltip)
-    tree.bind('<Leave>', hide_tooltip)
-    # 待出库数据结构
+    # 待出库数据结构（仅保留，实际已不用）
     cart_list = []  # [(row, 出库数量, 单价)]
     def load_data():
         for row in tree.get_children():
@@ -103,67 +155,7 @@ def InventoryPage(parent):
     def do_search():
         load_data()
     ttk.Button(search_frame, text="搜索", command=do_search, width=8).pack(side=tk.LEFT, padx=8)
-    # 双击出库
-    def on_outbound(event):
-        row_id = tree.identify_row(event.y)
-        if not row_id:
-            return
-        tree.selection_set(row_id)
-        selected = tree.selection()
-        if not selected:
-            return
-        item = tree.item(selected[0])
-        values = item['values']
-        # 弹窗输入出库数量及单价
-        dialog = tk.Toplevel(frame)
-        dialog.title("出库信息")
-        dialog.transient(frame)
-        dialog.grab_set()
-        dialog.update_idletasks()
-        w, h = 340, 230
-        x = dialog.winfo_screenwidth() // 2 - w // 2
-        y = dialog.winfo_screenheight() // 2 - h // 2
-        dialog.geometry(f"{w}x{h}+{x}+{y}")
-        tk.Label(dialog, text=f"出库【{values[1]} {values[2]} {values[3]} {values[4]}】", font=("微软雅黑", 11)).pack(pady=(18, 8))
-        entry_frame = ttk.Frame(dialog)
-        entry_frame.pack(pady=2)
-        qty_var = tk.StringVar()
-        price_var = tk.StringVar()
-        ttk.Label(entry_frame, text="出库数量:").grid(row=0, column=0, padx=4, pady=6)
-        qty_entry = ttk.Entry(entry_frame, textvariable=qty_var, width=10, justify='center')
-        qty_entry.grid(row=0, column=1, padx=4)
-        ttk.Label(entry_frame, text="单价:").grid(row=1, column=0, padx=4, pady=6)
-        price_entry = ttk.Entry(entry_frame, textvariable=price_var, width=10, justify='center')
-        price_entry.grid(row=1, column=1, padx=4)
-        error_label = tk.Label(dialog, text="", fg="red")
-        error_label.pack(pady=2)
-        def confirm():
-            try:
-                qty = int(qty_var.get())
-                if qty <= 0 or qty > int(values[5]):
-                    error_label['text'] = "数量需大于0且不超过库存！"
-                    return
-                price = float(price_var.get())
-                if price < 0:
-                    error_label['text'] = "单价不能为负数！"
-                    return
-            except Exception:
-                error_label['text'] = "请输入有效数字！"
-                return
-            # 加入待出库，附带单价
-            inventory_id = None
-            tags = tree.item(selected[0]).get('tags', [])
-            if tags:
-                inventory_id = int(tags[0])
-            values_with_id = [inventory_id] + list(values)
-            cart_list.append((values_with_id, qty, price))
-            cart_count.set(cart_count.get() + 1)
-            update_cart_btn()
-            dialog.destroy()
-        ttk.Button(dialog, text="确定", command=confirm, width=10).pack(pady=10)
-        qty_entry.focus_set()
-        dialog.wait_window()
-    tree.bind("<Double-1>", on_outbound)
+    # ...已移除双击出库功能...
     load_data()
 
     def export_inventory():

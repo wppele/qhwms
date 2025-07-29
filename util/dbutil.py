@@ -1,5 +1,59 @@
 import sqlite3
 import os
+# 删除暂存单及明细
+def delete_draft_order(draft_id):
+    """根据draft_id删除暂存单主表及所有明细"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM draft_item WHERE draft_id=?", (draft_id,))
+    cursor.execute("DELETE FROM draft_order WHERE draft_id=?", (draft_id,))
+    conn.commit()
+    conn.close()
+
+# 获取所有暂存出库单主表
+def get_all_draft_orders():
+    """获取所有暂存出库单主表记录（draft_order）"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT draft_id, customer_id, total_amount, remark, create_time FROM draft_order ORDER BY draft_id DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+# 获取指定暂存单的所有明细
+def get_draft_items_by_order(draft_id):
+    """获取指定暂存单的所有明细（draft_item）"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT item_id, draft_id, product_id, quantity, price, amount FROM draft_item WHERE draft_id=?", (draft_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def insert_draft_order(customer_id, total_amount, remark, create_time):
+    """插入一条暂存出库单主表记录，返回主键draft_id"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO draft_order (customer_id, total_amount, remark, create_time)
+        VALUES (?, ?, ?, ?)
+    ''', (customer_id, total_amount, remark, create_time))
+    draft_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return draft_id
+
+def insert_draft_item(draft_id, product_id, quantity, price, amount):
+    """插入一条暂存出库单明细记录"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO draft_item (draft_id, product_id, quantity, price, amount)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (draft_id, product_id, quantity, price, amount))
+    conn.commit()
+    conn.close()
+
 # 删除出库明细表中的一条记录
 def delete_outbound_item_by_id(item_id):
     conn = sqlite3.connect(DB_PATH)
@@ -238,6 +292,28 @@ def init_db():
     ensure_db_dir()
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
+    # 新增暂存出库单主表（draft_order）
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS draft_order (
+            draft_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            customer_id INTEGER,
+            total_amount REAL NOT NULL,
+            remark TEXT,
+            create_time TEXT
+        )
+    ''')
+    # 新增暂存出库单明细表（draft_item）
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS draft_item (
+            item_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            draft_id INTEGER NOT NULL,
+            product_id INTEGER,
+            quantity INTEGER NOT NULL,
+            price REAL NOT NULL DEFAULT 0,
+            amount REAL NOT NULL,
+            FOREIGN KEY(draft_id) REFERENCES draft_order(draft_id)
+        )
+    ''')
     # 创建用户表
     # 字段说明：
     #   id: 主键，自增

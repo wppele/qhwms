@@ -3,7 +3,7 @@ from tkinter import ttk, messagebox
 from util import dbutil
 import datetime
 
-def OutboundDialog(parent, cart_list):
+def OutboundDialog(parent, cart_list, customer_name=None):
     dialog = tk.Toplevel(parent)
     dialog.title("出库单")
     # 居中显示
@@ -19,23 +19,22 @@ def OutboundDialog(parent, cart_list):
     tk.Label(dialog, text="千辉鞋业出库单", font=("微软雅黑", 16, "bold"), fg="#2a5d2a").pack(pady=(18, 8))
     # 订单号、客户、出库日期一行显示
     now = datetime.datetime.now()
-    today_str = now.strftime('%Y%m%d')
-    # 查询当天已有订单数
-    all_orders = dbutil.get_all_outbound_orders()
-    today_orders = [o for o in all_orders if o[1].startswith(f"QH{today_str}")]
-    order_seq = len(today_orders) + 1
-    order_no = f"QH{today_str}{order_seq:04d}"
     top_row = ttk.Frame(dialog)
     top_row.pack(fill=tk.X, padx=30, pady=2)
     ttk.Label(top_row, text="订单号:", font=("微软雅黑", 11)).pack(side=tk.LEFT)
-    order_no_var = tk.StringVar(value=order_no)
-    ttk.Entry(top_row, textvariable=order_no_var, width=18, state='readonly').pack(side=tk.LEFT, padx=4)
+    order_no_var = tk.StringVar(value="")
+    order_no_entry = ttk.Entry(top_row, textvariable=order_no_var, width=18, state='readonly')
+    order_no_entry.pack(side=tk.LEFT, padx=4)
     ttk.Label(top_row, text="客户:", font=("微软雅黑", 11)).pack(side=tk.LEFT, padx=(12,0))
     customers = dbutil.get_all_customers()
     customer_names = [c[1] for c in customers]
     customer_var = tk.StringVar()
+    if customer_name:
+        customer_var.set(customer_name)
     customer_combo = ttk.Combobox(top_row, textvariable=customer_var, values=customer_names, width=14, state="normal")
     customer_combo.pack(side=tk.LEFT, padx=4)
+    if customer_name:
+        customer_combo.set(customer_name)
     # 自动补全功能
     def on_customer_input(event):
         value = customer_var.get()
@@ -138,13 +137,67 @@ def OutboundDialog(parent, cart_list):
     # 隐藏 product_id 列
     tree['displaycolumns'] = [col for col, _ in headers]
     # 填充表格，cart_list: [(inv_row, qty, price)]，inv_row[0]=product_id
-    for v, qty, price in cart_list:
-        inv = dbutil.get_inventory_by_id(v[0])
-        product_no = inv[2] if inv else ''
-        color = inv[4] if inv else ''
-        size = inv[3] if inv else ''
-        amount = qty * price
-        tree.insert("", tk.END, values=(product_no, color, size, qty, price, f"{amount:.2f}", "待付款", "0.00", f"{amount:.2f}", v[0]))
+    if cart_list:
+        for v, qty, price in cart_list:
+            inv = dbutil.get_inventory_by_id(v[0])
+            product_no = inv[2] if inv else ''
+            color = inv[4] if inv else ''
+            size = inv[3] if inv else ''
+            amount = qty * price
+            tree.insert("", tk.END, values=(product_no, color, size, qty, price, f"{amount:.2f}", "待付款", "0.00", f"{amount:.2f}", v[0]))
+
+    # 新增：添加商品和删除商品按钮
+    def add_item_row():
+        # 获取所有库存商品，组合显示货号-颜色-尺码
+        all_inv = dbutil.get_all_inventory()
+        display_items = [f"{inv[3]}-{inv[5]}-{inv[4]}" for inv in all_inv]  # 货号-颜色-尺码
+        values = ("", "", "", 0, 0.0, "0.00", "待付款", "0.00", "0.00", "")
+        item_id = tree.insert("", tk.END, values=values)
+        # 弹出货号输入框，支持模糊匹配
+        def edit_product_no():
+            x, y, width, height = tree.bbox(item_id, '#1')
+            entry = ttk.Combobox(tree, values=display_items, width=18)
+            entry.place(x=x, y=y, width=width, height=height)
+            entry.focus_set()
+            def on_select(e=None):
+                val = entry.get()
+                inv = next((i for i in all_inv if f"{i[3]}-{i[5]}-{i[4]}" == val), None)
+                product_no = inv[3] if inv else ''
+                color = inv[5] if inv else ''
+                size = inv[4] if inv else ''
+                pid = inv[0] if inv else ''
+                vals = list(tree.item(item_id)['values'])
+                vals[0] = product_no
+                vals[1] = color
+                vals[2] = size
+                vals[9] = pid
+                tree.item(item_id, values=vals)
+                entry.destroy()
+            def on_keyrelease(event):
+                value = entry.get().strip().lower()
+                if value == '':
+                    entry['values'] = display_items
+                elif len(value) >= 2:
+                    filtered = [item for item in display_items if value in item.lower()]
+                    entry['values'] = filtered if filtered else display_items
+                    if filtered:
+                        entry.event_generate('<Down>')
+                # 输入长度小于2时不弹出提示
+            entry.bind('<Return>', on_select)
+            entry.bind('<<ComboboxSelected>>', on_select)
+            entry.bind('<KeyRelease>', on_keyrelease)
+        edit_product_no()
+
+    def delete_selected_row():
+        sel = tree.selection()
+        for item in sel:
+            tree.delete(item)
+        calc_total()
+
+    op_btn_frame = ttk.Frame(dialog)
+    op_btn_frame.pack(fill=tk.X, padx=30, pady=2)
+    ttk.Button(op_btn_frame, text="添加商品", command=add_item_row).pack(side=tk.LEFT)
+    ttk.Button(op_btn_frame, text="删除选中", command=delete_selected_row).pack(side=tk.LEFT, padx=8)
     # 合计金额、总已付、总待付款一行显示在表格下方
     bottom_frame = ttk.Frame(dialog)
     bottom_frame.pack(fill=tk.X, padx=30, pady=8)
@@ -200,46 +253,108 @@ def OutboundDialog(parent, cart_list):
             except Exception:
                 tree.set(item, "price", "")
         calc_total()
-    # 允许编辑尺码和单价
+    # 允许编辑货号、尺码、数量、单价
     def on_double_click(event):
         item = tree.identify_row(event.y)
         col = tree.identify_column(event.x)
-        if not item or col not in ('#3', '#5'):
+        if not item or col not in ('#1', '#3', '#4', '#5'):
             return
-        if col == '#3':
-            col_name = 'size'
-        elif col == '#5':
-            col_name = 'price'
-        else:
-            return
-        x, y, width, height = tree.bbox(item, col)
-        value = tree.set(item, col_name)
-        entry = ttk.Entry(tree, width=8)
-        entry.insert(0, value)
-        entry.place(x=x, y=y, width=width, height=height)
-        entry.focus_set()
-        def on_focus_out(e):
-            new_val = entry.get()
-            tree.set(item, col_name, new_val)
-            entry.destroy()
-            if col_name == 'price':
-                # 自动更新该行金额和待付款
+        if col == '#1':
+            # 编辑货号，弹出模糊匹配输入框，显示货号-颜色-尺码
+            all_inv = dbutil.get_all_inventory()
+            display_items = [f"{inv[3]}-{inv[5]}-{inv[4]}" for inv in all_inv]
+            x, y, width, height = tree.bbox(item, col)
+            value = tree.set(item, 'product_no')
+            # 当前行已有货号、颜色、尺码，组合成下拉初始值
+            color = tree.set(item, 'color')
+            size = tree.set(item, 'size')
+            combo_value = f"{value}-{color}-{size}" if value else ""
+            entry = ttk.Combobox(tree, values=display_items, width=18)
+            entry.place(x=x, y=y, width=width, height=height)
+            entry.set(combo_value)
+            entry.focus_set()
+            def on_select(e=None):
+                val = entry.get()
+                inv = next((i for i in all_inv if f"{i[3]}-{i[5]}-{i[4]}" == val), None)
+                product_no = inv[3] if inv else ''
+                color = inv[5] if inv else ''
+                size = inv[4] if inv else ''
+                pid = inv[0] if inv else ''
                 vals = list(tree.item(item)['values'])
-                try:
-                    qty = float(vals[3]) if vals[3] else 0
-                    price = float(new_val) if new_val else 0
-                    amount = qty * price
-                    vals[5] = f"{amount:.2f}"
-                    paid = float(vals[7]) if vals[7] else 0
-                    debt = amount - paid
-                    vals[8] = f"{debt:.2f}"
-                except Exception:
-                    vals[5] = ""
-                    vals[8] = ""
+                vals[0] = product_no
+                vals[1] = color
+                vals[2] = size
+                vals[9] = pid
                 tree.item(item, values=vals)
-                calc_total()
-        entry.bind('<FocusOut>', on_focus_out)
-        entry.bind('<Return>', on_focus_out)
+                entry.destroy()
+            def on_keyrelease(event):
+                value = entry.get().strip().lower()
+                if value == '':
+                    entry['values'] = display_items
+                elif len(value) >= 2:
+                    filtered = [item for item in display_items if value in item.lower()]
+                    entry['values'] = filtered if filtered else display_items
+                    if filtered:
+                        entry.event_generate('<Down>')
+                # 输入长度小于2时不弹出提示
+            entry.bind('<Return>', on_select)
+            entry.bind('<<ComboboxSelected>>', on_select)
+            entry.bind('<KeyRelease>', on_keyrelease)
+        else:
+            editable_cols = ['#3', '#4', '#5']
+            col_names = {'#3': 'size', '#4': 'quantity', '#5': 'price'}
+            if col not in editable_cols:
+                return
+            col_idx = editable_cols.index(col)
+            col_name = col_names[col]
+            def edit_entry_by_col(item, col):
+                col_name = col_names[col]
+                x, y, width, height = tree.bbox(item, col)
+                value = tree.set(item, col_name)
+                entry = ttk.Entry(tree, width=8)
+                entry.insert(0, value)
+                entry.place(x=x, y=y, width=width, height=height)
+                entry.focus_set()
+                # 自动选中内容，方便直接覆盖
+                entry.selection_range(0, tk.END)
+                def save_and_next(next_col=None):
+                    new_val = entry.get()
+                    tree.set(item, col_name, new_val)
+                    entry.destroy()
+                    vals = list(tree.item(item)['values'])
+                    try:
+                        qty = float(vals[3]) if vals[3] else 0
+                        price = float(vals[4]) if vals[4] else 0
+                        amount = qty * price
+                        vals[5] = f"{amount:.2f}"
+                        paid = float(vals[7]) if vals[7] else 0
+                        debt = amount - paid
+                        vals[8] = f"{debt:.2f}"
+                    except Exception:
+                        vals[5] = ""
+                        vals[8] = ""
+                    tree.item(item, values=vals)
+                    calc_total()
+                    # 如果指定了下一个可编辑项，则弹出下一个输入框
+                    if next_col:
+                        tree.after(10, lambda: edit_entry_by_col(item, next_col))
+                def on_focus_out(e):
+                    save_and_next()
+                def on_return(e):
+                    save_and_next()
+                def on_tab(e):
+                    next_idx = editable_cols.index(col) + 1
+                    if next_idx < len(editable_cols):
+                        next_col = editable_cols[next_idx]
+                        save_and_next(next_col)
+                    else:
+                        save_and_next()
+                    return "break"
+                entry.bind('<FocusOut>', on_focus_out)
+                entry.bind('<Return>', on_return)
+                entry.bind('<Tab>', on_tab)
+            # 首次调用
+            edit_entry_by_col(item, col)
     tree.bind('<Double-1>', on_double_click)
     # 初始合计
     calc_total()
@@ -248,12 +363,75 @@ def OutboundDialog(parent, cart_list):
     # 底部按钮
     btn_frame = ttk.Frame(dialog)
     btn_frame.pack(pady=18)
-    
-    def save_order():
-        # 校验
+
+    def on_submit():
+        # 1. 检测客户姓名
         if not customer_var.get():
             messagebox.showwarning("提示", "请选择客户！")
-            return False, None
+            return
+        # 2. 检查每行商品数量和单价不能为0，且库存是否充足
+        for item in tree.get_children():
+            vals = tree.item(item)['values']
+            product_id = vals[9]
+            quantity = int(vals[3]) if vals[3] else 0
+            price = float(vals[4]) if vals[4] else 0
+            if quantity <= 0:
+                messagebox.showerror("错误", f"货号:{vals[0]} 颜色:{vals[1]} 尺码:{vals[2]} 数量不能为0！")
+                return
+            if price <= 0:
+                messagebox.showerror("错误", f"货号:{vals[0]} 颜色:{vals[1]} 尺码:{vals[2]} 单价不能为0！")
+                return
+            inv = dbutil.get_inventory_by_id(product_id)
+            stock_qty = inv[-1] if inv else 0
+            if quantity > stock_qty:
+                messagebox.showerror("库存不足", f"货号:{vals[0]} 颜色:{vals[1]} 尺码:{vals[2]} 库存仅剩{stock_qty}，无法出库{quantity}件！")
+                return
+        # 3. 计算已付金额和待付金额（如填写了本次支付金额，则自动分配到各商品）
+        pay_amount = pay_amount_var.get()
+        try:
+            pay_amount = float(pay_amount)
+        except Exception:
+            pay_amount = 0.0
+        # 自动分配支付金额到各商品
+        if pay_amount > 0:
+            # 按待付款升序分配
+            items = []
+            for tree_id in tree.get_children():
+                vals = tree.item(tree_id)['values']
+                amount = float(vals[5]) if vals[5] else 0
+                paid = float(vals[7]) if vals[7] else 0
+                debt = float(vals[8]) if vals[8] else 0
+                items.append({'tree_id': tree_id, 'amount': amount, 'paid': paid, 'debt': debt})
+            items.sort(key=lambda x: x['debt'])
+            remain = pay_amount
+            for item in items:
+                if item['debt'] <= 0:
+                    continue
+                if remain <= 0:
+                    break
+                pay_this = min(remain, item['debt'])
+                new_paid = item['paid'] + pay_this
+                new_debt = item['debt'] - pay_this
+                new_status = '已付' if new_debt <= 0.01 else '待付款'
+                vals = list(tree.item(item['tree_id'])['values'])
+                vals[6] = new_status
+                vals[7] = f"{new_paid:.2f}"
+                vals[8] = f"{new_debt:.2f}"
+                tree.item(item['tree_id'], values=vals)
+                remain -= pay_this
+            calc_total()
+        total_paid = float(total_paid_var.get())
+        total_debt = float(total_debt_var.get())
+        # 4. 生成订单号
+        if not order_no_var.get():
+            today_str = now.strftime('%Y%m%d')
+            all_orders = dbutil.get_all_outbound_orders()
+            today_orders = [o for o in all_orders if o[1].startswith(f"QH{today_str}")]
+            order_seq = len(today_orders) + 1
+            order_no = f"QH{today_str}{order_seq:04d}"
+            order_no_var.set(order_no)
+            order_no_entry.update()
+        # 5. 生成出库单（写入数据库）
         try:
             total = float(total_var.get())
             now_str = now.strftime('%Y-%m-%d %H:%M:%S')
@@ -263,9 +441,6 @@ def OutboundDialog(parent, cart_list):
                 if c[1] == customer_var.get():
                     customer_id = c[0]
                     break
-            # 合计
-            total_paid = float(total_paid_var.get())
-            total_debt = float(total_debt_var.get())
             # pay_status
             if total_debt <= 0:
                 pay_status = 2  # 全额
@@ -279,7 +454,7 @@ def OutboundDialog(parent, cart_list):
             item_ids = []
             for idx, item in enumerate(tree.get_children()):
                 vals = tree.item(item)['values']
-                product_id = vals[9]  # 新增列
+                product_id = vals[9]
                 quantity = int(vals[3])
                 price = float(vals[4]) if vals[4] else 0
                 amount = float(vals[5]) if vals[5] else 0
@@ -288,76 +463,76 @@ def OutboundDialog(parent, cart_list):
                 debt_amount = float(vals[8]) if vals[8] else 0
                 returnable_qty = quantity
                 size = vals[2] if len(vals) > 2 else ''
-                # 插入出库单明细，补充price字段
                 dbutil.insert_outbound_item(
                     outbound_id, product_id, quantity, price, amount, item_pay_status, paid_amount, debt_amount, returnable_qty
                 )
-                # 同步更新inventory表的size字段（如有变动）
                 dbutil.update_inventory_size_by_id(product_id, size)
                 item_ids.append(str(idx+1))
                 dbutil.decrease_inventory_by_id(product_id, quantity)
-            # 写入debt_record
             if total_debt > 0:
                 dbutil.insert_debt_record(outbound_id, ','.join(item_ids), total_debt)
-            # 写入payment_record（如有支付金额）
             if total_paid > 0:
                 dbutil.insert_payment_record(outbound_id, ','.join(item_ids), total_paid, now_str, pay_method_var.get())
-            return True, None
         except Exception as e:
             messagebox.showerror("错误", f"保存出库单失败：{e}")
-            return False, None
-
-    def on_submit():
-        ok, _ = save_order()
-        if ok:
-            if hasattr(parent, 'cart_count'):
-                try:
-                    parent.cart_count.set(0)
-                except Exception:
-                    pass
-            if hasattr(parent, 'refresh') and callable(parent.refresh):
-                parent.refresh()
-            messagebox.showinfo("成功", "出库单已保存！")
-            dialog.destroy()
-
-    def on_submit_and_pay():
-        try:
-            pay_amount = float(pay_amount_var.get())
-            if pay_amount <= 0:
-                messagebox.showwarning("提示", "请输入大于0的支付金额！")
-                return
-        except Exception:
-            messagebox.showwarning("提示", "请输入有效的支付金额！")
             return
-        # 仅UI层分配支付金额，不写数据库
-        # 获取所有明细，按待付款升序分配
-        items = []
-        for tree_id in tree.get_children():
-            vals = tree.item(tree_id)['values']
-            amount = float(vals[5]) if vals[5] else 0
-            paid = float(vals[7]) if vals[7] else 0
-            debt = float(vals[8]) if vals[8] else 0
-            items.append({'tree_id': tree_id, 'amount': amount, 'paid': paid, 'debt': debt})
-        items.sort(key=lambda x: x['debt'])
-        remain = pay_amount
-        for item in items:
-            if item['debt'] <= 0:
-                continue
-            if remain <= 0:
-                break
-            pay_this = min(remain, item['debt'])
-            new_paid = item['paid'] + pay_this
-            new_debt = item['debt'] - pay_this
-            new_status = '已付' if new_debt <= 0.01 else '待付款'
-            vals = list(tree.item(item['tree_id'])['values'])
-            vals[6] = new_status
-            vals[7] = f"{new_paid:.2f}"
-            vals[8] = f"{new_debt:.2f}"
-            tree.item(item['tree_id'], values=vals)
-            remain -= pay_this
-        calc_total()
-        messagebox.showinfo("成功", f"已结账，实际支付：{pay_amount - remain:.2f} 元\n如需关闭请点击“生成出库单”")
-    ttk.Button(btn_frame, text="保存并结账", command=on_submit_and_pay, width=16).pack(side=tk.LEFT, padx=8)
+        # 6. 提示是否输出为PDF
+        if messagebox.askyesno("出库单已保存", "是否输出为PDF？"):
+            try:
+                from outbound_detail_dialog import show_outbound_detail
+                show_outbound_detail(None, order_no)
+            except Exception as e:
+                messagebox.showerror("错误", f"打开出库单详情失败：{e}")
+        # 自动删除暂存单（如有）
+        # 判断是否为暂存单进入（cart_list不为空且customer_name不为空）
+        if cart_list and customer_name:
+            # 查找暂存单id
+            # 通过客户名、金额、时间等条件查找最近的draft_order
+            all_drafts = dbutil.get_all_draft_orders()
+            match_id = None
+            for d in all_drafts:
+                # d: (draft_id, customer_id, total_amount, remark, create_time)
+                cust = dbutil.get_customer_by_id(d[1])
+                if cust and cust[1] == customer_name and abs(d[2] - total) < 0.01:
+                    match_id = d[0]
+                    break
+            if match_id:
+                dbutil.delete_draft_order(match_id)
+        if hasattr(parent, 'refresh') and callable(parent.refresh):
+            parent.refresh()
+        dialog.destroy()
+
+    def on_save_draft():
+        # 检查客户
+        if not customer_var.get():
+            messagebox.showwarning("提示", "请选择客户！")
+            return
+        # 暂存时写入draft_order和draft_item表
+        try:
+            total = float(total_var.get())
+            now_str = now.strftime('%Y-%m-%d %H:%M:%S')
+            # 获取客户id
+            customer_id = None
+            for c in customers:
+                if c[1] == customer_var.get():
+                    customer_id = c[0]
+                    break
+            remark = ''
+            draft_id = dbutil.insert_draft_order(customer_id, total, remark, now_str)
+            for item in tree.get_children():
+                vals = tree.item(item)['values']
+                product_id = vals[9]
+                quantity = int(vals[3])
+                price = float(vals[4]) if vals[4] else 0
+                amount = float(vals[5]) if vals[5] else 0
+                dbutil.insert_draft_item(draft_id, product_id, quantity, price, amount)
+            messagebox.showinfo("暂存成功", "出库单已暂存，可在库存页面查看和继续操作！")
+            dialog.destroy()
+        except Exception as e:
+            messagebox.showerror("错误", f"暂存失败：{e}")
+            return
+
+    ttk.Button(btn_frame, text="暂存出库单", command=on_save_draft, width=16).pack(side=tk.LEFT, padx=8)
     ttk.Button(btn_frame, text="生成出库单", command=on_submit, width=16).pack(side=tk.LEFT, padx=8)
 
     dialog.wait_window()
