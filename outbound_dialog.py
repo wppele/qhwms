@@ -34,8 +34,21 @@ def OutboundDialog(parent, cart_list):
     customers = dbutil.get_all_customers()
     customer_names = [c[1] for c in customers]
     customer_var = tk.StringVar()
-    customer_combo = ttk.Combobox(top_row, textvariable=customer_var, values=customer_names, width=14, state="readonly")
+    customer_combo = ttk.Combobox(top_row, textvariable=customer_var, values=customer_names, width=14, state="normal")
     customer_combo.pack(side=tk.LEFT, padx=4)
+    # 自动补全功能
+    def on_customer_input(event):
+        value = customer_var.get()
+        value = value.strip().lower()
+        if value == '':
+            customer_combo['values'] = customer_names
+            return
+        filtered = [name for name in customer_names if value in name.lower()]
+        customer_combo['values'] = filtered if filtered else customer_names
+        # 自动弹出下拉
+        if filtered:
+            customer_combo.event_generate('<Down>')
+    customer_combo.bind('<KeyRelease>', on_customer_input)
     # 历史订单按钮
     def show_history():
         name = customer_var.get()

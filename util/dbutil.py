@@ -274,7 +274,8 @@ def init_db():
             in_quantity INTEGER NOT NULL,
             price REAL NOT NULL,
             total REAL NOT NULL,
-            is_settled INTEGER NOT NULL DEFAULT 0
+            is_settled INTEGER NOT NULL DEFAULT 0,
+            in_date TEXT
         )
     ''')
     # 结账记录表（settle_log）
@@ -442,19 +443,22 @@ def get_all_stock():
     """获取所有入库记录（库存主表）"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT id, factory, product_no, size, color, in_quantity, price, total, is_settled FROM stock ORDER BY id DESC")
+    cursor.execute("SELECT id, factory, product_no, size, color, in_quantity, price, total, is_settled, in_date FROM stock ORDER BY id DESC")
     rows = cursor.fetchall()
     conn.close()
     return rows
 
-def insert_stock(factory, product_no, size, color, in_quantity, price, total):
-    """插入一条入库记录到stock表"""
+def insert_stock(factory, product_no, size, color, in_quantity, price, total, in_date=None):
+    """插入一条入库记录到stock表，支持自定义入库时间"""
+    import datetime
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
+    if in_date is None:
+        in_date = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     cursor.execute('''
-        INSERT INTO stock (factory, product_no, size, color, in_quantity, price, total, is_settled)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 0)
-    ''', (factory, product_no, size, color, in_quantity, price, total))
+        INSERT INTO stock (factory, product_no, size, color, in_quantity, price, total, is_settled, in_date)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)
+    ''', (factory, product_no, size, color, in_quantity, price, total, in_date))
     conn.commit()
     conn.close()
 
