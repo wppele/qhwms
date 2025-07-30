@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from util import dbutil
-from index import show_main_page
+from pages.index import show_main_page
 from util.utils import center_window
 
 # 登录窗口

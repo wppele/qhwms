@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from util import dbutil
-from outbound_detail_dialog import show_outbound_detail
+from pages.dialog.outbound_detail_dialog import show_outbound_detail
 def OutboundManagePage(parent):
     # 鼠标悬停表格项时显示提示
     def show_tooltip(event):

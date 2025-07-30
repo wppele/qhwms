@@ -26,7 +26,7 @@ def InventoryPage(parent):
     # "制作出库单"按钮，弹出空白出库单
     def show_make_outbound():
         try:
-            from outbound_dialog import OutboundDialog
+            from pages.dialog.outbound_dialog import OutboundDialog
         except ImportError:
             tk.messagebox.showerror("错误", "未找到出库单页面模块！")
             return
@@ -34,7 +34,7 @@ def InventoryPage(parent):
 
     def show_draft_list():
         try:
-            from outbound_dialog import OutboundDialog
+            from pages.dialog.outbound_dialog import OutboundDialog
         except ImportError:
             tk.messagebox.showerror("错误", "未找到出库单页面模块！")
             return

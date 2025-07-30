@@ -1,15 +1,15 @@
 import tkinter as tk
 from tkinter import ttk
 from util.utils import center_window
-from stock_page import StockPage
-from record_pages import SettleLogPage, StockLogPage
-from inventory_page import InventoryPage  # 新增库存页面导入
-from customer_page import CustomerPage
-from account_manage_page import AccountManagePage
+from pages.stock_page import StockPage
+from pages.record_pages import SettleLogPage, StockLogPage
+from pages.inventory_page import InventoryPage  # 新增库存页面导入
+from pages.customer_page import CustomerPage
+from pages.account_manage_page import AccountManagePage
 
-from outbound_manage_page import OutboundManagePage
-from sale_return_page import SaleReturnPage
-from welcome_page import WelcomeFrame
+from pages.outbound_manage_page import OutboundManagePage
+from pages.sale_return_page import SaleReturnPage
+from pages.welcome_page import WelcomeFrame
 
 def show_main_page(username, root=None):
     if root is not None:
@@ -97,9 +97,9 @@ def show_main_page(username, root=None):
     page_customer = CustomerPage(content_frame)
     page_account_manage = AccountManagePage(content_frame)
     page_outbound_manage = OutboundManagePage(content_frame)
-    from payment_record_page import PaymentRecordPage
+    from pages.payment_record_page import PaymentRecordPage
     page_payment_record = PaymentRecordPage(content_frame)
-    from arrears_settle_page import ArrearsSettlePage
+    from pages.arrears_settle_page import ArrearsSettlePage
     page_arrears_settle = ArrearsSettlePage(content_frame)
     page_sale_return = SaleReturnPage(content_frame)
 
