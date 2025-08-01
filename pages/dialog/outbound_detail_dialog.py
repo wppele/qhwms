@@ -146,7 +146,7 @@ def show_outbound_detail(parent, order_no):
         doc = SimpleDocTemplate(
             file_path,
             pagesize=A4,
-            topMargin=15*mm,
+            topMargin=8*mm,
             bottomMargin=15*mm,
             leftMargin=15*mm,
             rightMargin=15*mm
@@ -231,7 +231,7 @@ def show_outbound_detail(parent, order_no):
         # 合并为一个单元格，无表格线
         total_info_table = Table([[summary_text]], colWidths=[180*mm], hAlign='LEFT')
         total_info_table.setStyle(TableStyle([
-            ("ALIGN", (0,0), (-1,-1), "CENTER"),
+            ("ALIGN", (0,0), (-1,-1), "LEFT"),
             ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
             ("FONTNAME", (0,0), (-1,-1), font_name),
             ("FONTSIZE", (0,0), (-1,-1), 11),
