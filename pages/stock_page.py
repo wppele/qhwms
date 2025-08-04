@@ -286,7 +286,11 @@ def StockPage(parent, main_win):
         ("in_date", "入库时间")
     ]
     tree = ttk.Treeview(frame, columns=columns, show="headings", height=12, selectmode="extended")
-    tree.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+    # 添加垂直滚动条
+    vsb = ttk.Scrollbar(frame, orient="vertical", command=tree.yview)
+    tree.configure(yscrollcommand=vsb.set)
+    tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(10,0), pady=10)
+    vsb.pack(side=tk.LEFT, fill=tk.Y, pady=10)
     # 双击结账
     def on_settle_selected(event=None):
         row_id = tree.focus() if event is None else tree.identify_row(event.y)

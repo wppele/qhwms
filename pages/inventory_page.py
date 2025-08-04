@@ -127,7 +127,11 @@ def InventoryPage(parent):
         ("quantity", "库存数量")
     ]
     tree = ttk.Treeview(frame, columns=columns, show="headings", height=15)
-    tree.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+    # 添加垂直滚动条
+    vsb = ttk.Scrollbar(frame, orient="vertical", command=tree.yview)
+    tree.configure(yscrollcommand=vsb.set)
+    tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(10,0), pady=10)
+    vsb.pack(side=tk.LEFT, fill=tk.Y, pady=10)
     for col, text in headers:
         tree.heading(col, text=text)
         tree.column(col, anchor=tk.CENTER, width=90)
