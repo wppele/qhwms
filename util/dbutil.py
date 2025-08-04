@@ -3,18 +3,15 @@ import os
 # 删除暂存单及明细
 def delete_draft_order(draft_id):
     """根据draft_id删除暂存单主表及所有明细"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute("DELETE FROM draft_item WHERE draft_id=?", (draft_id,))
     cursor.execute("DELETE FROM draft_order WHERE draft_id=?", (draft_id,))
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
 
 # 获取所有暂存出库单主表
 def get_all_draft_orders():
     """获取所有暂存出库单主表记录（draft_order）"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute("SELECT draft_id, customer_id, total_amount, remark, create_time FROM draft_order ORDER BY draft_id DESC")
     rows = cursor.fetchall()
     conn.close()
@@ -23,8 +20,7 @@ def get_all_draft_orders():
 # 获取指定暂存单的所有明细
 def get_draft_items_by_order(draft_id):
     """获取指定暂存单的所有明细（draft_item）"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute("SELECT item_id, draft_id, product_id, quantity, price, amount FROM draft_item WHERE draft_id=?", (draft_id,))
     rows = cursor.fetchall()
     conn.close()
@@ -32,71 +28,55 @@ def get_draft_items_by_order(draft_id):
 
 def insert_draft_order(customer_id, total_amount, remark, create_time):
     """插入一条暂存出库单主表记录，返回主键draft_id"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute('''
         INSERT INTO draft_order (customer_id, total_amount, remark, create_time)
         VALUES (?, ?, ?, ?)
     ''', (customer_id, total_amount, remark, create_time))
     draft_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
     return draft_id
 
 def insert_draft_item(draft_id, product_id, quantity, price, amount):
     """插入一条暂存出库单明细记录"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute('''
         INSERT INTO draft_item (draft_id, product_id, quantity, price, amount)
         VALUES (?, ?, ?, ?, ?)
     ''', (draft_id, product_id, quantity, price, amount))
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
 
 # 删除出库明细表中的一条记录
 def delete_outbound_item_by_id(item_id):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute("DELETE FROM outbound_item WHERE item_id=?", (item_id,))
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
 
 # 删除出库单主表中的一条记录
 def delete_outbound_order_by_id(outbound_id):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute("DELETE FROM outbound_order WHERE outbound_id=?", (outbound_id,))
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
 
 # 同步更新出库单主表金额、已付、待付、支付状态
 def update_outbound_order_amount(outbound_id, total_amount, total_paid, total_debt, pay_status):
-    import sqlite3
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute("UPDATE outbound_order SET total_amount=?, total_paid=?, total_debt=?, pay_status=? WHERE outbound_id=?", (total_amount, total_paid, total_debt, pay_status, outbound_id))
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
 # 更新出库明细表的总金额（amount）
 def update_outbound_item_amount(item_id, new_amount):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute("UPDATE outbound_item SET amount=? WHERE item_id=?", (new_amount, item_id))
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
 # 根据item_id减少outbound_item表中的quantity
 def decrease_outbound_item_quantity(item_id, qty):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute("UPDATE outbound_item SET quantity = quantity - ? WHERE item_id=? AND quantity >= ?", (qty, item_id, qty))
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
 
 # 根据order_no查找outbound_id
 def get_outbound_id_by_order_no(order_no):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute("SELECT outbound_id FROM outbound_order WHERE order_no=?", (order_no,))
     row = cursor.fetchone()
     conn.close()
@@ -104,16 +84,13 @@ def get_outbound_id_by_order_no(order_no):
 
 # 根据item_id减少returnable_qty
 def decrease_returnable_qty_by_item_id(item_id, qty):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute("UPDATE outbound_item SET returnable_qty = returnable_qty - ? WHERE item_id=? AND returnable_qty >= ?", (qty, item_id, qty))
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
 
 # 根据货号、颜色、尺码查找库存
 def get_inventory_by_id_by_fields(product_no, color, size):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute("SELECT id, factory, product_no, size, color, quantity FROM inventory WHERE product_no=? AND color=? AND size=?", (product_no, color, size))
     row = cursor.fetchone()
     conn.close()
@@ -121,18 +98,15 @@ def get_inventory_by_id_by_fields(product_no, color, size):
 
 def increase_inventory_by_id(inventory_id, quantity):
     """根据库存主键id增加库存表(inventory)的数量"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute('''
         UPDATE inventory SET quantity = quantity + ? WHERE id=?
     ''', (quantity, inventory_id))
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
 
 def get_outbound_order_by_id(outbound_id):
     """根据出库单主表id获取记录"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute("SELECT outbound_id, order_no, customer_id, total_amount, pay_status, total_paid, total_debt, create_time FROM outbound_order WHERE outbound_id=?", (outbound_id,))
     row = cursor.fetchone()
     conn.close()
@@ -140,8 +114,7 @@ def get_outbound_order_by_id(outbound_id):
 
 def get_customer_by_id(customer_id):
     """根据客户id获取客户信息"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute("SELECT id, name, address, phone, logistics_info FROM customer_info WHERE id=?", (customer_id,))
     row = cursor.fetchone()
     conn.close()
@@ -149,16 +122,13 @@ def get_customer_by_id(customer_id):
 
 # 新增：根据id更新inventory表的size字段
 def update_inventory_size_by_id(inventory_id, size):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute("UPDATE inventory SET size=? WHERE id=?", (size, inventory_id))
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
 # 通过product_id获取库存信息（货号/颜色/尺码等）
 def get_inventory_by_id(product_id):
     """根据product_id（即inventory.id）获取库存信息，返回(id, factory, product_no, size, color, quantity)"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute("SELECT id, factory, product_no, size, color, quantity FROM inventory WHERE id=?", (product_id,))
     row = cursor.fetchone()
     conn.close()
@@ -168,80 +138,67 @@ def get_inventory_by_id(product_id):
 # 新出库单主表插入
 def insert_outbound_order(order_no, customer_id, total_amount, pay_status, total_paid, total_debt, create_time):
     """插入一条出库单主表记录，返回主键outbound_id"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute('''
         INSERT INTO outbound_order (order_no, customer_id, total_amount, pay_status, total_paid, total_debt, create_time)
         VALUES (?, ?, ?, ?, ?, ?, ?)
     ''', (order_no, customer_id, total_amount, pay_status, total_paid, total_debt, create_time))
     outbound_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
     return outbound_id
 
 # 新出库单明细插入
 def insert_outbound_item(outbound_id, product_id, quantity, price, amount, item_pay_status, paid_amount, debt_amount, returnable_qty):
     """插入一条出库单明细记录，含单价price"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute('''
         INSERT INTO outbound_item (outbound_id, product_id, quantity, price, amount, item_pay_status, paid_amount, debt_amount, returnable_qty)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (outbound_id, product_id, quantity, price, amount, item_pay_status, paid_amount, debt_amount, returnable_qty))
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
 
 # 新增支付记录
 def insert_payment_record(outbound_id, item_ids, payment_amount, pay_time,pay_method):
     """插入一条支付记录"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute('''
         INSERT INTO payment_record (outbound_id, item_ids, payment_amount, pay_time,pay_method)
         VALUES (?, ?, ?, ?,?)
     ''', (outbound_id, item_ids, payment_amount, pay_time,pay_method))
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
 
 # 新增欠账记录
 def insert_debt_record(outbound_id, item_ids, remaining_debt):
     """插入一条欠账记录"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute('''
         INSERT INTO debt_record (outbound_id, item_ids, remaining_debt)
         VALUES (?, ?, ?)
     ''', (outbound_id, item_ids, remaining_debt))
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
 
 def decrease_inventory(product_no, color, size, quantity):
     """根据货号、颜色、尺码减少库存表(inventory)的数量"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute('''
         UPDATE inventory SET quantity = quantity - ? WHERE product_no=? AND color=? AND size=? AND quantity >= ?
     ''', (quantity, product_no, color, size, quantity))
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
 
 # 根据库存主键id减少库存数量
 def decrease_inventory_by_id(inventory_id, quantity):
     """根据库存主键id减少库存表(inventory)的数量"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute('''
         UPDATE inventory SET quantity = quantity - ? WHERE id=? AND quantity >= ?
     ''', (quantity, inventory_id, quantity))
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
 
 
 # 获取所有出库单主表
 def get_all_outbound_orders():
     """获取所有出库单主表记录（outbound_order）"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute("SELECT outbound_id, order_no, customer_id, total_amount, pay_status, total_paid, total_debt, create_time FROM outbound_order ORDER BY outbound_id DESC")
     rows = cursor.fetchall()
     conn.close()
@@ -250,8 +207,7 @@ def get_all_outbound_orders():
 # 获取指定出库单的所有明细
 def get_outbound_items_by_order(outbound_id):
     """获取指定出库单的所有明细（outbound_item）"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute("SELECT item_id, outbound_id, product_id, quantity, price, amount, item_pay_status, paid_amount, debt_amount, returnable_qty FROM outbound_item WHERE outbound_id=?", (outbound_id,))
     rows = cursor.fetchall()
     conn.close()
@@ -259,8 +215,7 @@ def get_outbound_items_by_order(outbound_id):
 
 # 获取所有支付记录
 def get_all_payment_records():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     try:
         cursor.execute("SELECT payment_id, outbound_id, item_ids, payment_amount, pay_time, pay_method FROM payment_record ORDER BY payment_id DESC")
     except Exception:
@@ -271,8 +226,7 @@ def get_all_payment_records():
 
 # 获取所有欠账记录
 def get_all_debt_records():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute("SELECT debt_id, outbound_id, item_ids, remaining_debt FROM debt_record ORDER BY debt_id DESC")
     rows = cursor.fetchall()
     conn.close()
@@ -280,7 +234,20 @@ def get_all_debt_records():
 
 
 
+
 DB_PATH = r'C:\qhwms\qhwms.db'
+
+# 通用数据库连接工具方法
+def get_db_conn():
+    """获取数据库连接和游标"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    return conn, cursor
+
+def commit_and_close(conn):
+    """提交并关闭数据库连接"""
+    conn.commit()
+    conn.close()
 
 def ensure_db_dir():
     db_dir = os.path.dirname(DB_PATH)
@@ -524,91 +491,87 @@ def get_all_stock():
     conn.close()
     return rows
 
+# 新增：根据stock_id同步修改inventory表相关信息
+def update_inventory_by_stock_id(stock_id, factory, product_no, size, color, in_quantity):
+    """根据库存的stock_id同步修改inventory表相关信息"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE inventory SET factory=?, product_no=?, size=?, color=?, quantity=? WHERE stock_id=?
+    ''', (factory, product_no, size, color, in_quantity, stock_id))
+    conn.commit()
+    conn.close()
+
 def insert_stock(factory, product_no, size, color, in_quantity, price, total, in_date=None):
     """插入一条入库记录到stock表，支持自定义入库时间"""
     import datetime
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     if in_date is None:
         in_date = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     cursor.execute('''
         INSERT INTO stock (factory, product_no, size, color, in_quantity, price, total, is_settled, in_date)
         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)
     ''', (factory, product_no, size, color, in_quantity, price, total, in_date))
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
 
 def delete_stock_by_id(stock_id):
     """根据id删除入库记录（stock表）"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute("DELETE FROM stock WHERE id=?", (stock_id,))
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
 
 def update_stock_by_id(stock_id, factory, product_no, size, color, in_quantity, price, total):
     """根据id更新入库记录（stock表）"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute('''
         UPDATE stock SET factory=?, product_no=?, size=?, color=?, in_quantity=?, price=?, total=? WHERE id=?
     ''', (factory, product_no, size, color, in_quantity, price, total, stock_id))
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
 
 def settle_stock_by_id(stock_id):
     """将指定id的库存记录is_settled字段设为1，可传单个id或id列表"""
     """
     将指定id的库存记录is_settled字段设为1，可传单个id或id列表
     """
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     if isinstance(stock_id, (list, tuple)):
         cursor.executemany("UPDATE stock SET is_settled=1 WHERE id=?", [(i,) for i in stock_id])
     else:
         cursor.execute("UPDATE stock SET is_settled=1 WHERE id=?", (stock_id,))
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
 
 # 插入结账记录
 def insert_settle_log(factory, product_no, size, color, in_quantity, price, total, settle_date):
     """插入一条结账记录到settle_log表"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute('''
         INSERT INTO settle_log (factory, product_no, size, color, in_quantity, price, total, settle_date)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ''', (factory, product_no, size, color, in_quantity, price, total, settle_date))
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
 
 # 插入入库/返厂记录
 def insert_stock_log(factory, product_no, size, color, in_quantity, action_type, action_date):
     """插入一条入库/返厂操作日志到stock_log表"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute('''
         INSERT INTO stock_log (factory, product_no, size, color, in_quantity, action_type, action_date)
         VALUES (?, ?, ?, ?, ?, ?, ?)
     ''', (factory, product_no, size, color, in_quantity, action_type, action_date))
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
 
 def insert_inventory_from_stock(stock_id, factory, product_no, size, color, quantity):
     """根据入库信息插入一条库存记录到inventory表"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute('''
         INSERT INTO inventory (stock_id, factory, product_no, size, color, quantity)
         VALUES (?, ?, ?, ?, ?, ?)
     ''', (stock_id, factory, product_no, size, color, quantity))
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
 
 def get_all_inventory():
     """获取所有库存表（inventory）记录"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute("SELECT id, stock_id, factory, product_no, size, color, quantity FROM inventory ORDER BY id DESC")
     rows = cursor.fetchall()
     conn.close()
@@ -616,8 +579,7 @@ def get_all_inventory():
 
 def get_all_settle_log():
     """获取所有结账记录（settle_log表）"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute("SELECT factory, product_no, size, color, in_quantity, price, total, settle_date FROM settle_log ORDER BY id DESC")
     rows = cursor.fetchall()
     conn.close()
@@ -625,8 +587,7 @@ def get_all_settle_log():
 
 def get_all_stock_log():
     """获取所有入库/返厂日志（stock_log表）"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute("SELECT factory, product_no, size, color, in_quantity, action_type, action_date FROM stock_log ORDER BY id DESC")
     rows = cursor.fetchall()
     conn.close()
@@ -635,16 +596,13 @@ def get_all_stock_log():
 # 根据stock_id删除库存表中对应记录
 def delete_inventory_by_stock_id(stock_id):
     """根据入库id删除库存表中对应记录（inventory表）"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute("DELETE FROM inventory WHERE stock_id=?", (stock_id,))
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
 
 def get_all_customers():
     """获取所有客户信息（customer_info表）"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute("SELECT id, name, address, phone, logistics_info FROM customer_info ORDER BY id DESC")
     rows = cursor.fetchall()
     conn.close()
@@ -652,47 +610,38 @@ def get_all_customers():
 
 def insert_customer(name, address, phone, logistics_info):
     """插入一条客户信息到customer_info表"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute('''
         INSERT INTO customer_info (name, address, phone, logistics_info)
         VALUES (?, ?, ?, ?)
     ''', (name, address, phone, logistics_info))
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
 
 def update_customer(cid, name, address, phone, logistics_info):
     """根据id更新客户信息（customer_info表）"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute('''
         UPDATE customer_info SET name=?, address=?, phone=?, logistics_info=? WHERE id=?
     ''', (name, address, phone, logistics_info, cid))
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
 
 def delete_customer(cid):
     """根据id删除客户信息（customer_info表）"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute("DELETE FROM customer_info WHERE id=?", (cid,))
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
 
 
 # 用户表增删改查
 def insert_user(username, account, password, role=1):
     """新增用户，默认库管权限（role=1），管理员为0"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute("INSERT INTO users (username, account, password, role) VALUES (?, ?, ?, ?)", (username, account, password, role))
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
 
 def update_user(user_id, username=None, account=None, password=None, role=None):
     """修改用户信息，参数为None则不更新该字段"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     fields = []
     values = []
     if username is not None:
@@ -713,22 +662,18 @@ def update_user(user_id, username=None, account=None, password=None, role=None):
     sql = f"UPDATE users SET {', '.join(fields)} WHERE id=?"
     values.append(user_id)
     cursor.execute(sql, tuple(values))
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
     return True
 
 def delete_user(user_id):
     """根据id删除用户"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute("DELETE FROM users WHERE id=?", (user_id,))
-    conn.commit()
-    conn.close()
+    commit_and_close(conn)
 
 def get_user_by_id(user_id):
     """根据id获取用户信息"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute("SELECT id, username, account, role FROM users WHERE id=?", (user_id,))
     user = cursor.fetchone()
     conn.close()
@@ -736,8 +681,7 @@ def get_user_by_id(user_id):
 
 def get_all_users():
     """获取所有用户信息"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn, cursor = get_db_conn()
     cursor.execute("SELECT id, username, account, role FROM users ORDER BY id DESC")
     users = cursor.fetchall()
     conn.close()

@@ -184,15 +184,31 @@ def StockPage(parent, main_win):
                     error_label['text'] = "所有字段不能为空！"
                     return
             try:
+                factory = vars['factory'].get().strip()
+                product_no = vars['product_no'].get().strip()
+                size = vars['size'].get().strip()
+                color = vars['color'].get().strip()
+                in_quantity = int(vars['in_quantity'].get())
+                price = float(vars['price'].get())
+                total = float(vars['total'].get())
                 dbutil.update_stock_by_id(
                     stock_id,
-                    vars['factory'].get().strip(),
-                    vars['product_no'].get().strip(),
-                    vars['size'].get().strip(),
-                    vars['color'].get().strip(),
-                    int(vars['in_quantity'].get()),
-                    float(vars['price'].get()),
-                    float(vars['total'].get())
+                    factory,
+                    product_no,
+                    size,
+                    color,
+                    in_quantity,
+                    price,
+                    total
+                )
+                # 同步更新库存表
+                dbutil.update_inventory_by_stock_id(
+                    stock_id,
+                    factory,
+                    product_no,
+                    size,
+                    color,
+                    in_quantity
                 )
                 tk.messagebox.showinfo("成功", "修改成功！")
                 dialog.destroy()
