@@ -318,7 +318,8 @@ def init_db():
             price REAL NOT NULL,
             total REAL NOT NULL,
             is_settled INTEGER NOT NULL DEFAULT 0,
-            in_date TEXT
+            in_date TEXT,
+            unit TEXT
         )
     ''')
     # 结账记录表（settle_log）
@@ -486,7 +487,7 @@ def get_all_stock():
     """获取所有入库记录（库存主表）"""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT id, factory, product_no, size, color, in_quantity, price, total, is_settled, in_date FROM stock ORDER BY id DESC")
+    cursor.execute("SELECT id, factory, product_no, size, color,unit, in_quantity, price, total, is_settled, in_date FROM stock ORDER BY id DESC")
     rows = cursor.fetchall()
     conn.close()
     return rows
@@ -502,16 +503,16 @@ def update_inventory_by_stock_id(stock_id, factory, product_no, size, color, in_
     conn.commit()
     conn.close()
 
-def insert_stock(factory, product_no, size, color, in_quantity, price, total, in_date=None):
+def insert_stock(factory, product_no, size, color,unit, in_quantity, price, total, in_date=None):
     """插入一条入库记录到stock表，支持自定义入库时间"""
     import datetime
     conn, cursor = get_db_conn()
     if in_date is None:
         in_date = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     cursor.execute('''
-        INSERT INTO stock (factory, product_no, size, color, in_quantity, price, total, is_settled, in_date)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)
-    ''', (factory, product_no, size, color, in_quantity, price, total, in_date))
+        INSERT INTO stock (factory, product_no, size, color,unit, in_quantity, price, total, is_settled, in_date)
+        VALUES (?, ?, ?, ?, ?,?, ?, ?, 0, ?)
+    ''', (factory, product_no, size, color,unit, in_quantity, price, total, in_date))
     commit_and_close(conn)
 
 def delete_stock_by_id(stock_id):
@@ -520,12 +521,12 @@ def delete_stock_by_id(stock_id):
     cursor.execute("DELETE FROM stock WHERE id=?", (stock_id,))
     commit_and_close(conn)
 
-def update_stock_by_id(stock_id, factory, product_no, size, color, in_quantity, price, total):
+def update_stock_by_id(stock_id, factory, product_no, size, color,unit, in_quantity, price, total):
     """根据id更新入库记录（stock表）"""
     conn, cursor = get_db_conn()
     cursor.execute('''
-        UPDATE stock SET factory=?, product_no=?, size=?, color=?, in_quantity=?, price=?, total=? WHERE id=?
-    ''', (factory, product_no, size, color, in_quantity, price, total, stock_id))
+        UPDATE stock SET factory=?, product_no=?, size=?, color=?,unit=?, in_quantity=?, price=?, total=? WHERE id=?
+    ''', (factory, product_no, size, color,unit, in_quantity, price, total, stock_id))
     commit_and_close(conn)
 
 def settle_stock_by_id(stock_id):

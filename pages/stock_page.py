@@ -33,175 +33,36 @@ def StockPage(parent, main_win):
         widget.bind('<Enter>', enter)
         widget.bind('<Leave>', leave)
     add_tooltip(btn_add, "新增库存")
-    def on_delete_or_return():
-        selected = tree.selection()
-        if not selected:
-            tk.messagebox.showwarning("提示", "请先选择要操作的库存记录！")
-            return
-        item = tree.item(selected[0])
-        values = item['values']
-        factory, product_no, size, color = values[1], values[2], values[3], values[4]
-        # 自定义操作对话框
-        dialog = tk.Toplevel(main_win)
-        dialog.title("请选择操作")
-        dialog.transient(main_win)
-        dialog.grab_set()
-        center_window(dialog, 260, 120)
-        msg = f"对【{factory} {product_no} {color} {size}】请选择操作："
-        ttk.Label(dialog, text=msg, wraplength=240, font=("微软雅黑", 10)).pack(pady=(18, 10))
-        btn_frame = ttk.Frame(dialog)
-        btn_frame.pack(pady=5)
-        def do_return():
-            dialog.destroy()
-            stock_id = tree.selection()[0]
-            return_qty = int(values[5])
-            # 写入返厂日志
-            dbutil.insert_stock_log(
-                factory, product_no, size, color, return_qty, '返厂', utils.get_current_date()
-            )
-            # 返厂时，优先扣减所有厂家、货号、颜色一致的库存数量
-            inventory_rows = dbutil.get_all_inventory()
-            remain = return_qty
-            for row in inventory_rows:
-                # row: id, stock_id, factory, product_no, size, color, quantity
-                if row[2] == factory and row[3] == product_no and row[5] == color:
-                    inv_id = row[0]
-                    inv_qty = row[6]
-                    if inv_qty >= remain:
-                        dbutil.decrease_inventory_by_id(inv_id, remain)
-                        remain = 0
-                        break
-                    else:
-                        dbutil.decrease_inventory_by_id(inv_id, inv_qty)
-                        remain -= inv_qty
-            # 同步删除库存表中对应记录
-            dbutil.delete_inventory_by_stock_id(stock_id)
-            dbutil.delete_stock_by_id(stock_id)
-            # 自动刷新日志页面
-            if hasattr(main_win, 'refresh_logs'):
-                main_win.refresh_logs()
-            load_stock_data()
-            tk.messagebox.showinfo("返厂", f"已将【{factory} {product_no} {color} {size}】标记为返厂，并同步扣减库存！")
-        def do_delete():
-            dialog.destroy()
-            stock_id = tree.selection()[0]
-            del_qty = int(values[5])
-            # 删除时，优先扣减所有厂家、货号、颜色一致的库存数量
-            inventory_rows = dbutil.get_all_inventory()
-            remain = del_qty
-            for row in inventory_rows:
-                if row[2] == factory and row[3] == product_no and row[5] == color:
-                    inv_id = row[0]
-                    inv_qty = row[6]
-                    if inv_qty >= remain:
-                        dbutil.decrease_inventory_by_id(inv_id, remain)
-                        remain = 0
-                        break
-                    else:
-                        dbutil.decrease_inventory_by_id(inv_id, inv_qty)
-                        remain -= inv_qty
-            # 先删除库存表中对应记录
-            dbutil.delete_inventory_by_stock_id(stock_id)
-            dbutil.delete_stock_by_id(stock_id)
-            load_stock_data()
-            tk.messagebox.showinfo("删除", "删除成功，库存已同步扣减！")
-        def do_cancel():
-            dialog.destroy()
-        ttk.Button(btn_frame, text="返厂", width=8, command=do_return).pack(side=tk.LEFT, padx=8)
-        ttk.Button(btn_frame, text="删除", width=8, command=do_delete).pack(side=tk.LEFT, padx=8)
-        ttk.Button(btn_frame, text="取消", width=8, command=do_cancel).pack(side=tk.LEFT, padx=8)
-        dialog.wait_window()
-
-    btn_del = ttk.Button(stock_toolbar, text="🗑️", width=3, command=on_delete_or_return)
-    btn_del.pack(side=tk.LEFT, padx=3)
-    add_tooltip(btn_del, "删除/返厂")
-    def open_edit_stock_dialog():
-        selected = tree.selection()
-        if not selected:
-            tk.messagebox.showwarning("提示", "请先选择要修改的库存记录！")
-            return
-        item = tree.item(selected[0])
-        values = item['values']
-        stock_id = selected[0]
-        dialog = tk.Toplevel(main_win)
-        dialog.title("修改入库")
-        dialog.transient(main_win)
-        dialog.grab_set()
-        center_window(dialog, 380, 230)
-        fields = [
-            ("厂家", "factory"),
-            ("货号", "product_no"),
-            ("尺码", "size"),
-            ("颜色", "color"),
-            ("入库数量", "in_quantity"),
-            ("单价", "price"),
-            ("合计", "total")
-        ]
-        vars = {}
-        entry_refs = {}
-        for idx, (label, key) in enumerate(fields):
-            vars[key] = tk.StringVar()
-            if key in ["in_quantity", "price"]:
-                vars[key].trace_add("write", lambda *args: vars["total"].set(utils.calculate_total(vars["in_quantity"].get(), vars["price"].get())))
-        for idx, (label, key) in enumerate(fields[:-1]):
-            row = idx // 2
-            col = (idx % 2) * 2
-            ttk.Label(dialog, text=label+":").grid(row=row, column=col, sticky=tk.W, padx=10, pady=8)
-            var = tk.StringVar()
-            if key == 'price':
-                def validate_price(new_value):
-                    if new_value == "":
-                        return True
-                    if new_value.count('.') > 1:
-                        return False
-                    if new_value.startswith('.'):
-                        return False
-                    return all(c.isdigit() or c == '.' for c in new_value)
-                vcmd = dialog.register(validate_price)
-                entry = ttk.Entry(dialog, textvariable=var, validate="key", validatecommand=(vcmd, '%P'))
-            else:
-                entry = ttk.Entry(dialog, textvariable=var)
-            entry.configure(width=15)
-            entry.grid(row=row, column=col+1, sticky=tk.W+tk.E, padx=5)
-            vars[key] = var
-            entry_refs[key] = entry
-        ttk.Label(dialog, text="合计:").grid(row=4, column=2, sticky=tk.E, padx=10, pady=8)
-        total_var = tk.StringVar()
-        total_entry = ttk.Entry(dialog, textvariable=total_var, state='readonly', justify='right')
-        total_entry.configure(width=15)
-        total_entry.grid(row=4, column=3, sticky=tk.W+tk.E, padx=5)
-        vars['total'] = total_var
-        keys = ["factory", "product_no", "size", "color", "in_quantity", "price", "total"]
-        for i, k in enumerate(keys):
-            vars[k].set(values[i+1])
-        def update_total(*args):
-            vars['total'].set(utils.calculate_total(vars['in_quantity'].get(), vars['price'].get()))
-        vars['in_quantity'].trace_add('write', update_total)
-        vars['price'].trace_add('write', update_total)
-        def on_ok():
-            for k, v in vars.items():
-                if k != 'total' and not v.get().strip():
-                    error_label['text'] = "所有字段不能为空！"
-                    return
-            try:
-                factory = vars['factory'].get().strip()
-                product_no = vars['product_no'].get().strip()
-                size = vars['size'].get().strip()
-                color = vars['color'].get().strip()
-                in_quantity = int(vars['in_quantity'].get())
-                price = float(vars['price'].get())
-                total = float(vars['total'].get())
+    # ...existing code...
+    # 统一的库存提交方法，提升到StockPage作用域
+    def handle_stock_submit(vars, entry_refs, error_label, dialog, is_edit=False, stock_id=None):
+        for k, v in vars.items():
+            if k != 'total' and not v.get().strip():
+                error_label['text'] = "所有字段不能为空！"
+                return
+        try:
+            vars["total"].set(utils.calculate_total(vars["in_quantity"].get(), vars["price"].get()))
+            factory = vars['factory'].get().strip()
+            product_no = vars['product_no'].get().strip()
+            size = vars['size'].get().strip()
+            color = vars['color'].get().strip()
+            unit = vars.get('unit', tk.StringVar()).get().strip() if 'unit' in vars else ''
+            in_quantity = int(vars['in_quantity'].get())
+            price = float(vars['price'].get())
+            total = float(vars['total'].get())
+            in_date = vars.get('in_date', tk.StringVar()).get().strip() if 'in_date' in vars else utils.get_current_date()
+            if is_edit:
                 dbutil.update_stock_by_id(
                     stock_id,
                     factory,
                     product_no,
                     size,
                     color,
+                    unit,
                     in_quantity,
                     price,
                     total
                 )
-                # 同步更新库存表
                 dbutil.update_inventory_by_stock_id(
                     stock_id,
                     factory,
@@ -211,20 +72,83 @@ def StockPage(parent, main_win):
                     in_quantity
                 )
                 tk.messagebox.showinfo("成功", "修改成功！")
-                dialog.destroy()
-                load_stock_data()
-            except Exception as e:
-                error_label['text'] = str(e)
-        ttk.Button(dialog, text="确定修改", command=on_ok, width=12).grid(row=5, column=0, columnspan=4, pady=10)
-        error_label = tk.Label(dialog, text="", fg="red", font=("微软雅黑", 10))
-        error_label.grid(row=6, column=0, columnspan=4, pady=(0, 5))
-        dialog.after(100, lambda: entry_refs['factory'].focus_set())
-        dialog.wait_window()
+            else:
+                dbutil.insert_stock(
+                    factory,
+                    product_no,
+                    size,
+                    color,
+                    unit,
+                    in_quantity,
+                    price,
+                    total,
+                    in_date
+                )
+                stock_rows = dbutil.get_all_stock()
+                if stock_rows:
+                    stock_id = stock_rows[0][0]
+                # 处理库存合并和日志
+                found = None
+                inventory_rows = dbutil.get_all_inventory()
+                for row in inventory_rows:
+                    if row[2] == factory and row[3] == product_no and row[5] == color:
+                        found = row
+                        break
+                if found:
+                    inventory_id = found[0]
+                    old_size = found[4] or ''
+                    new_size = size or ''
+                    merged_size = dbutil.merge_size(old_size, new_size) if hasattr(dbutil, 'merge_size') else ','.join(sorted(set(s.strip() for s in (old_size + ',' + new_size).split(',') if s.strip())))
+                    dbutil.update_inventory_size_by_id(inventory_id, merged_size)
+                    dbutil.decrease_inventory_by_id(inventory_id, -in_quantity)
+                    dbutil.insert_stock_log(
+                        factory,
+                        product_no,
+                        merged_size,
+                        color,
+                        in_quantity,
+                        '入库',
+                        in_date
+                    )
+                    if hasattr(main_win, 'refresh_logs'):
+                        main_win.refresh_logs()
+                    tk.messagebox.showinfo("成功", f"已存在相同库存（尺码已合并为：{merged_size}），数量已增加 {in_quantity}！")
+                else:
+                    dbutil.insert_inventory_from_stock(
+                        stock_id,
+                        factory,
+                        product_no,
+                        size,
+                        color,
+                        in_quantity
+                    )
+                    dbutil.insert_stock_log(
+                        factory,
+                        product_no,
+                        size,
+                        color,
+                        in_quantity,
+                        '入库',
+                        in_date
+                    )
+                    if hasattr(main_win, 'refresh_logs'):
+                        main_win.refresh_logs()
+                    tk.messagebox.showinfo("成功", "新增成功！")
+                vars['color'].set("")
+                vars['in_quantity'].set("")
+                vars['price'].set("")
+                vars['total'].set("")
+                entry_refs['color'].focus_set()
+            load_stock_data()
+            # 新增成功后不关闭对话框，仅清空颜色、数量、合计，其他字段保留
+            vars['color'].set("")
+            vars['in_quantity'].set("")
+            vars['total'].set("")
+            entry_refs['color'].focus_set()
+        except Exception as e:
+            error_label['text'] = str(e)
 
-    btn_edit = ttk.Button(stock_toolbar, text="✏️", width=3, command=open_edit_stock_dialog)
-    btn_edit.pack(side=tk.LEFT, padx=3)
-    add_tooltip(btn_edit, "修改库存")
-    # 右侧搜索控件
+    # 右侧搜索控件（修正位置和作用域）
     search_frame = ttk.Frame(stock_toolbar)
     search_frame.pack(side=tk.RIGHT, padx=0)
     ttk.Label(search_frame, text="厂家:").pack(side=tk.LEFT)
@@ -242,8 +166,8 @@ def StockPage(parent, main_win):
         settled = search_settled.get()
         results = []
         for row in dbutil.get_all_stock():
-            # id, factory, product_no, size, color, in_quantity, price, total, is_settled, in_date
-            _, f, p, _, _, _, _, _, s, _ = row
+            # id, factory, product_no, size, color,unit, in_quantity, price, total, is_settled, in_date
+            _, f, p, _, _, _, _, _, _, s, _ = row
             if factory and factory not in f:
                 continue
             if product_no and product_no not in p:
@@ -256,7 +180,7 @@ def StockPage(parent, main_win):
         for r in tree.get_children():
             tree.delete(r)
         for idx, row in enumerate(results, 1):
-            id_, factory, product_no, size, color, in_quantity, price, total, is_settled, in_date = row
+            id_, factory, product_no, size, color,unit, in_quantity, price, total, is_settled, in_date = row
             is_settled = "是" if is_settled else "否"
             tree.insert("", tk.END, iid=str(id_), values=[
                 idx, 
@@ -264,6 +188,7 @@ def StockPage(parent, main_win):
                 product_no, 
                 size, 
                 color, 
+                unit,
                 in_quantity,  # 入库数量
                 price,  # 单价
                 total, 
@@ -272,13 +197,14 @@ def StockPage(parent, main_win):
             ])
     ttk.Button(search_frame, text="搜索", command=do_search, width=8).pack(side=tk.LEFT, padx=6)
     # 表格区，隐藏id，新增序号列，去掉可用数量
-    columns = ("no", "factory", "product_no", "size", "color", "in_quantity", "price", "total", "is_settled", "in_date")
+    columns = ("no", "factory", "product_no", "size", "color", "unit", "in_quantity", "price", "total", "is_settled", "in_date")
     headers = [
         ("no", "序号"),
         ("factory", "厂家"),
         ("product_no", "货号"),
         ("size", "尺码"),
         ("color", "颜色"),
+        ("unit", "单位"),
         ("in_quantity", "入库数量"),
         ("price", "单价"),
         ("total", "合计"),
@@ -382,9 +308,9 @@ def StockPage(parent, main_win):
         for row in tree.get_children():
             tree.delete(row)
         for idx, row in enumerate(dbutil.get_all_stock(), 1):
-            id_, factory, product_no, size, color, in_quantity, price, total, is_settled, in_date = row
+            id_, factory, product_no, size, color,unit, in_quantity, price, total, is_settled, in_date = row
             is_settled = "是" if is_settled else "否"
-            tree.insert("", tk.END, iid=str(id_), values=[idx, factory, product_no, size, color, in_quantity, price, total, is_settled, in_date])
+            tree.insert("", tk.END, iid=str(id_), values=[idx, factory, product_no, size, color,unit, in_quantity, price, total, is_settled, in_date])
     load_stock_data()
     # 新增库存后刷新表格
     def open_add_stock_dialog_and_refresh():
@@ -396,12 +322,13 @@ def StockPage(parent, main_win):
         dialog.title("新增库存")
         dialog.transient(main_win)
         dialog.grab_set()
-        center_window(dialog, 450, 230)
+        center_window(dialog, 330, 200)
         fields = [
             ("厂家", "factory"),
             ("货号", "product_no"),
             ("尺码", "size"),
             ("颜色", "color"),
+            ("单位", "unit"),
             ("入库数量", "in_quantity"),
             ("单价", "price"),
             ("合计", "total"),
@@ -414,40 +341,65 @@ def StockPage(parent, main_win):
                 vars[key] = tk.StringVar(value=utils.get_current_date())
             else:
                 vars[key] = tk.StringVar()
-        for idx, (label, key) in enumerate(fields[:-2]):
-            row = idx // 2
-            col = (idx % 2) * 2
-            ttk.Label(dialog, text=label+":").grid(row=row, column=col, sticky=tk.W, padx=10, pady=8)
-            var = vars[key]
-            if key in ['in_quantity', 'price']:
-                var.trace_add('write', lambda *args: update_total(vars))
-            if key == 'price':
-                def validate_price(new_value):
-                    if new_value == "":
-                        return True
-                    if new_value.count('.') > 1:
-                        return False
-                    if new_value.startswith('.'):
-                        return False
-                    return all(c.isdigit() or c == '.' for c in new_value)
-                vcmd = dialog.register(validate_price)
-                entry = ttk.Entry(dialog, textvariable=var, validate="key", validatecommand=(vcmd, '%P'))
-            else:
-                entry = ttk.Entry(dialog, textvariable=var)
-            entry.grid(row=row, column=col+1, sticky=tk.W+tk.E, padx=5)
-            entry_refs[key] = entry
-        # 入库时间框（合计左侧）
-        ttk.Label(dialog, text="入库时间:").grid(row=4, column=0, sticky=tk.W, padx=10, pady=8)
-        in_date_entry = ttk.Entry(dialog, textvariable=vars['in_date'], width=15)
-        in_date_entry.grid(row=4, column=1, sticky=tk.W+tk.E, padx=5)
-        def update_total(vars):
-            vars["total"].set(utils.calculate_total(vars["in_quantity"].get(), vars["price"].get()))
-        ttk.Label(dialog, text="合计:").grid(row=4, column=2, sticky=tk.E, padx=10, pady=8)
+        # 第一排：厂家、货号
+        row1 = ttk.Frame(dialog)
+        row1.pack(fill=tk.X, padx=10, pady=4, anchor=tk.W)
+        ttk.Label(row1, text="厂家:").pack(side=tk.LEFT)
+        entry_refs['factory'] = ttk.Entry(row1, textvariable=vars['factory'], width=17)
+        entry_refs['factory'].pack(side=tk.LEFT, padx=(2,10))
+        ttk.Label(row1, text="货号:").pack(side=tk.LEFT)
+        entry_refs['product_no'] = ttk.Entry(row1, textvariable=vars['product_no'], width=17)
+        entry_refs['product_no'].pack(side=tk.LEFT, padx=(2,0))
+
+        # 第二排：尺码、颜色、单位
+        row2 = ttk.Frame(dialog)
+        row2.pack(fill=tk.X, padx=10, pady=4, anchor=tk.W)
+        ttk.Label(row2, text="尺码:").pack(side=tk.LEFT)
+        entry_refs['size'] = ttk.Entry(row2, textvariable=vars['size'], width=9)
+        entry_refs['size'].pack(side=tk.LEFT, padx=(2,10))
+        ttk.Label(row2, text="颜色:").pack(side=tk.LEFT)
+        entry_refs['color'] = ttk.Entry(row2, textvariable=vars['color'], width=9)
+        entry_refs['color'].pack(side=tk.LEFT, padx=(2,10))
+        ttk.Label(row2, text="单位:").pack(side=tk.LEFT)
+        vars['unit'] = tk.StringVar()
+        entry_refs['unit'] = ttk.Entry(row2, textvariable=vars['unit'], width=7)
+        entry_refs['unit'].pack(side=tk.LEFT, padx=(2,0))
+
+        # 第三排：入库数量、单价
+        row3 = ttk.Frame(dialog)
+        row3.pack(fill=tk.X, padx=10, pady=4, anchor=tk.W)
+        ttk.Label(row3, text="入库数量:").pack(side=tk.LEFT)
+        entry_refs['in_quantity'] = ttk.Entry(row3, textvariable=vars['in_quantity'], width=15)
+        entry_refs['in_quantity'].pack(side=tk.LEFT, padx=(2,10))
+        vars['in_quantity'].trace_add('write', lambda *args: update_total(vars))
+        ttk.Label(row3, text="单价:").pack(side=tk.LEFT)
+        def validate_price(new_value):
+            if new_value == "":
+                return True
+            if new_value.count('.') > 1:
+                return False
+            if new_value.startswith('.'):
+                return False
+            return all(c.isdigit() or c == '.' for c in new_value)
+        vcmd = dialog.register(validate_price)
+        entry_refs['price'] = ttk.Entry(row3, textvariable=vars['price'], validate="key", validatecommand=(vcmd, '%P'), width=15)
+        entry_refs['price'].pack(side=tk.LEFT, padx=(2,0))
+        vars['price'].trace_add('write', lambda *args: update_total(vars))
+
+        # 第四排：合计、入库时间
+        row4 = ttk.Frame(dialog)
+        row4.pack(fill=tk.X, padx=10, pady=4, anchor=tk.W)
+        ttk.Label(row4, text="合计:").pack(side=tk.LEFT)
         total_var = tk.StringVar()
-        total_entry = ttk.Entry(dialog, textvariable=total_var, state='readonly', justify='right')
-        total_entry.grid(row=4, column=3, sticky=tk.W+tk.E, padx=5)
+        entry_refs['total'] = ttk.Entry(row4, textvariable=total_var, state='readonly', justify='right', width=15)
+        entry_refs['total'].pack(side=tk.LEFT, padx=(2,10))
         vars['total'] = total_var
-        def on_add():
+        ttk.Label(row4, text="入库时间:").pack(side=tk.LEFT)
+        entry_refs['in_date'] = ttk.Entry(row4, textvariable=vars['in_date'], width=15)
+        entry_refs['in_date'].pack(side=tk.LEFT, padx=(2,0))
+
+        # 第五排：确定按钮
+        def handle_stock_submit(is_edit=False, stock_id=None):
             for k, v in vars.items():
                 if k != 'total' and not v.get().strip():
                     error_label['text'] = "所有字段不能为空！"
@@ -458,56 +410,24 @@ def StockPage(parent, main_win):
                 product_no = vars['product_no'].get().strip()
                 size = vars['size'].get().strip()
                 color = vars['color'].get().strip()
+                unit = vars['unit'].get().strip()
                 in_quantity = int(vars['in_quantity'].get())
                 price = float(vars['price'].get())
                 total = float(vars['total'].get())
                 in_date = vars['in_date'].get().strip()
-                dbutil.insert_stock(
-                    factory,
-                    product_no,
-                    size,
-                    color,
-                    in_quantity,
-                    price,
-                    total,
-                    in_date
-                )
-                stock_rows = dbutil.get_all_stock()
-                if stock_rows:
-                    stock_id = stock_rows[0][0]
-                inventory_rows = dbutil.get_all_inventory()
-                found = None
-                for row in inventory_rows:
-                    if row[2] == factory and row[3] == product_no and row[5] == color:
-                        found = row
-                        break
-                if found:
-                    inventory_id = found[0]
-                    old_size = found[4] or ''
-                    new_size = size or ''
-                    size_set = set(s.strip() for s in (old_size + ',' + new_size).split(',') if s.strip())
-                    merged_size = ','.join(sorted(size_set))
-                    import sqlite3
-                    conn = sqlite3.connect(dbutil.DB_PATH)
-                    cursor = conn.cursor()
-                    cursor.execute("UPDATE inventory SET size=? WHERE id=?", (merged_size, inventory_id))
-                    conn.commit()
-                    conn.close()
-                    dbutil.decrease_inventory_by_id(inventory_id, -in_quantity)
-                    dbutil.insert_stock_log(
+                if is_edit:
+                    dbutil.update_stock_by_id(
+                        stock_id,
                         factory,
                         product_no,
-                        merged_size,
+                        size,
                         color,
                         in_quantity,
-                        '入库',
-                        in_date
+                        price,
+                        total,
+                        unit
                     )
-                    if hasattr(main_win, 'refresh_logs'):
-                        main_win.refresh_logs()
-                    tk.messagebox.showinfo("成功", f"已存在相同库存（尺码已合并为：{merged_size}），数量已增加 {in_quantity}！")
-                else:
-                    dbutil.insert_inventory_from_stock(
+                    dbutil.update_inventory_by_stock_id(
                         stock_id,
                         factory,
                         product_no,
@@ -515,31 +435,85 @@ def StockPage(parent, main_win):
                         color,
                         in_quantity
                     )
-                    dbutil.insert_stock_log(
+                    tk.messagebox.showinfo("成功", "修改成功！")
+                else:
+                    dbutil.insert_stock(
                         factory,
                         product_no,
                         size,
                         color,
+                        unit,
                         in_quantity,
-                        '入库',
+                        price,
+                        total,
                         in_date
                     )
-                    if hasattr(main_win, 'refresh_logs'):
-                        main_win.refresh_logs()
-                    tk.messagebox.showinfo("成功", "新增成功！")
+                    stock_rows = dbutil.get_all_stock()
+                    if stock_rows:
+                        stock_id = stock_rows[0][0]
+                    # 处理库存合并和日志
+                    found = None
+                    inventory_rows = dbutil.get_all_inventory()
+                    for row in inventory_rows:
+                        if row[2] == factory and row[3] == product_no and row[5] == color:
+                            found = row
+                            break
+                    if found:
+                        inventory_id = found[0]
+                        old_size = found[4] or ''
+                        new_size = size or ''
+                        merged_size = dbutil.merge_size(old_size, new_size) if hasattr(dbutil, 'merge_size') else ','.join(sorted(set(s.strip() for s in (old_size + ',' + new_size).split(',') if s.strip())))
+                        dbutil.update_inventory_size_by_id(inventory_id, merged_size)
+                        dbutil.decrease_inventory_by_id(inventory_id, -in_quantity)
+                        dbutil.insert_stock_log(
+                            factory,
+                            product_no,
+                            merged_size,
+                            color,
+                            in_quantity,
+                            '入库',
+                            in_date
+                        )
+                        if hasattr(main_win, 'refresh_logs'):
+                            main_win.refresh_logs()
+                        tk.messagebox.showinfo("成功", f"已存在相同库存（尺码已合并为：{merged_size}），数量已增加 {in_quantity}！")
+                    else:
+                        dbutil.insert_inventory_from_stock(
+                            stock_id,
+                            factory,
+                            product_no,
+                            size,
+                            color,
+                            in_quantity
+                        )
+                        dbutil.insert_stock_log(
+                            factory,
+                            product_no,
+                            size,
+                            color,
+                            in_quantity,
+                            '入库',
+                            in_date
+                        )
+                        if hasattr(main_win, 'refresh_logs'):
+                            main_win.refresh_logs()
+                        tk.messagebox.showinfo("成功", "新增成功！")
+                    vars['color'].set("")
+                    vars['in_quantity'].set("")
+                    vars['total'].set("")
+                    entry_refs['color'].focus_set()
                 load_stock_data()
-                vars['color'].set("")
-                vars['in_quantity'].set("")
-                vars['price'].set("")
-                vars['total'].set("")
-                entry_refs['color'].focus_set()
             except Exception as e:
                 error_label['text'] = str(e)
-        add_btn = ttk.Button(dialog, text="确定新增", command=on_add, width=12)
-        add_btn.grid(row=5, column=0, columnspan=4, pady=10)
-        dialog.bind('<Return>', lambda event: on_add())
+        row5 = ttk.Frame(dialog)
+        row5.pack(fill=tk.X, padx=10, pady=8, anchor=tk.W)
+        add_btn = ttk.Button(row5, text="确定新增", command=lambda: handle_stock_submit(False), width=12)
+        add_btn.pack(side=tk.LEFT)
+        def update_total(vars):
+            vars["total"].set(utils.calculate_total(vars["in_quantity"].get(), vars["price"].get()))
+        dialog.bind('<Return>', lambda event: handle_stock_submit(False))
         error_label = tk.Label(dialog, text="", fg="red", font=("微软雅黑", 10))
-        error_label.grid(row=6, column=0, columnspan=4, pady=(0, 5))
+        error_label.pack(pady=(0, 5), padx=10, anchor=tk.W)
         dialog.after(100, lambda: entry_refs['factory'].focus_set())
         dialog.wait_window()
     # 删除/返厂和修改库存按钮已在创建时绑定，无需后续循环绑定
@@ -634,84 +608,119 @@ def StockPage(parent, main_win):
         dialog.title("修改入库")
         dialog.transient(main_win)
         dialog.grab_set()
-        center_window(dialog, 380, 230)
+        center_window(dialog, 330, 200)
         fields = [
             ("厂家", "factory"),
             ("货号", "product_no"),
             ("尺码", "size"),
             ("颜色", "color"),
+            ("单位", "unit"),
             ("入库数量", "in_quantity"),
             ("单价", "price"),
-            ("合计", "total")
+            ("合计", "total"),
+            ("入库时间", "in_date")  # 补充入库时间字段，防止KeyError
         ]
         vars = {}
         entry_refs = {}
         for idx, (label, key) in enumerate(fields):
-            vars[key] = tk.StringVar()
+            if key == "in_date":
+                vars[key] = tk.StringVar(value=utils.get_current_date())
+            else:
+                vars[key] = tk.StringVar()
             if key in ["in_quantity", "price"]:
                 vars[key].trace_add("write", lambda *args: vars["total"].set(utils.calculate_total(vars["in_quantity"].get(), vars["price"].get())))
-        for idx, (label, key) in enumerate(fields[:-1]):
-            row = idx // 2
-            col = (idx % 2) * 2
-            ttk.Label(dialog, text=label+":").grid(row=row, column=col, sticky=tk.W, padx=10, pady=8)
-            var = tk.StringVar()
-            if key == 'price':
-                def validate_price(new_value):
-                    if new_value == "":
-                        return True
-                    if new_value.count('.') > 1:
-                        return False
-                    if new_value.startswith('.'):
-                        return False
-                    return all(c.isdigit() or c == '.' for c in new_value)
-                vcmd = dialog.register(validate_price)
-                entry = ttk.Entry(dialog, textvariable=var, validate="key", validatecommand=(vcmd, '%P'))
-            else:
-                entry = ttk.Entry(dialog, textvariable=var)
-            entry.configure(width=15)
-            entry.grid(row=row, column=col+1, sticky=tk.W+tk.E, padx=5)
-            vars[key] = var
-            entry_refs[key] = entry
-        ttk.Label(dialog, text="合计:").grid(row=4, column=2, sticky=tk.E, padx=10, pady=8)
+        # 第一排：厂家、货号
+        row1 = ttk.Frame(dialog)
+        row1.pack(fill=tk.X, padx=10, pady=4, anchor=tk.W)
+        ttk.Label(row1, text="厂家:").pack(side=tk.LEFT)
+        entry_refs['factory'] = ttk.Entry(row1, textvariable=vars['factory'], width=17)
+        entry_refs['factory'].pack(side=tk.LEFT, padx=(2,10))
+        ttk.Label(row1, text="货号:").pack(side=tk.LEFT)
+        entry_refs['product_no'] = ttk.Entry(row1, textvariable=vars['product_no'], width=17)
+        entry_refs['product_no'].pack(side=tk.LEFT, padx=(2,0))
+
+        # 第二排：尺码、颜色、单位
+        row2 = ttk.Frame(dialog)
+        row2.pack(fill=tk.X, padx=10, pady=4, anchor=tk.W)
+        ttk.Label(row2, text="尺码:").pack(side=tk.LEFT)
+        entry_refs['size'] = ttk.Entry(row2, textvariable=vars['size'], width=9)
+        entry_refs['size'].pack(side=tk.LEFT, padx=(2,10))
+        ttk.Label(row2, text="颜色:").pack(side=tk.LEFT)
+        entry_refs['color'] = ttk.Entry(row2, textvariable=vars['color'], width=9)
+        entry_refs['color'].pack(side=tk.LEFT, padx=(2,10))
+        ttk.Label(row2, text="单位:").pack(side=tk.LEFT)
+        vars['unit'] = tk.StringVar()
+        entry_refs['unit'] = ttk.Entry(row2, textvariable=vars['unit'], width=7)
+        entry_refs['unit'].pack(side=tk.LEFT, padx=(2,0))
+
+        # 第三排：入库数量、单价
+        row3 = ttk.Frame(dialog)
+        row3.pack(fill=tk.X, padx=10, pady=4, anchor=tk.W)
+        ttk.Label(row3, text="入库数量:").pack(side=tk.LEFT)
+        entry_refs['in_quantity'] = ttk.Entry(row3, textvariable=vars['in_quantity'], width=15)
+        entry_refs['in_quantity'].pack(side=tk.LEFT, padx=(2,10))
+        vars['in_quantity'].trace_add('write', lambda *args: update_total(vars))
+        ttk.Label(row3, text="单价:").pack(side=tk.LEFT)
+        def validate_price(new_value):
+            if new_value == "":
+                return True
+            if new_value.count('.') > 1:
+                return False
+            if new_value.startswith('.'):
+                return False
+            return all(c.isdigit() or c == '.' for c in new_value)
+        vcmd = dialog.register(validate_price)
+        entry_refs['price'] = ttk.Entry(row3, textvariable=vars['price'], validate="key", validatecommand=(vcmd, '%P'), width=15)
+        entry_refs['price'].pack(side=tk.LEFT, padx=(2,0))
+        vars['price'].trace_add('write', lambda *args: update_total(vars))
+
+        # 第四排：合计、入库时间
+        row4 = ttk.Frame(dialog)
+        row4.pack(fill=tk.X, padx=10, pady=4, anchor=tk.W)
+        ttk.Label(row4, text="合计:").pack(side=tk.LEFT)
         total_var = tk.StringVar()
-        total_entry = ttk.Entry(dialog, textvariable=total_var, state='readonly', justify='right')
-        total_entry.configure(width=15)
-        total_entry.grid(row=4, column=3, sticky=tk.W+tk.E, padx=5)
+        entry_refs['total'] = ttk.Entry(row4, textvariable=total_var, state='readonly', justify='right', width=15)
+        entry_refs['total'].pack(side=tk.LEFT, padx=(2,10))
         vars['total'] = total_var
-        keys = ["factory", "product_no", "size", "color", "in_quantity", "price", "total"]
-        for i, k in enumerate(keys):
-            vars[k].set(values[i+1])
+        ttk.Label(row4, text="入库时间:").pack(side=tk.LEFT)
+        entry_refs['in_date'] = ttk.Entry(row4, textvariable=vars['in_date'], width=15)
+        entry_refs['in_date'].pack(side=tk.LEFT, padx=(2,0))
+
+        # 第五排：确定按钮
+        row5 = ttk.Frame(dialog)
+        row5.pack(fill=tk.X, padx=10, pady=8, anchor=tk.W)
+        edit_btn = ttk.Button(row5, text="确定修改", command=lambda: handle_stock_submit(vars, entry_refs, error_label, dialog, True, stock_id), width=12)
+        edit_btn.pack(side=tk.LEFT)
         def update_total(*args):
             vars['total'].set(utils.calculate_total(vars['in_quantity'].get(), vars['price'].get()))
         vars['in_quantity'].trace_add('write', update_total)
         vars['price'].trace_add('write', update_total)
-        def on_ok():
-            for k, v in vars.items():
-                if k != 'total' and not v.get().strip():
-                    error_label['text'] = "所有字段不能为空！"
-                    return
-            try:
-                dbutil.update_stock_by_id(
-                    stock_id,
-                    vars['factory'].get().strip(),
-                    vars['product_no'].get().strip(),
-                    vars['size'].get().strip(),
-                    vars['color'].get().strip(),
-                    int(vars['in_quantity'].get()),
-                    float(vars['price'].get()),
-                    float(vars['total'].get())
-                )
-                tk.messagebox.showinfo("成功", "修改成功！")
-                dialog.destroy()
-                load_stock_data()
-            except Exception as e:
-                error_label['text'] = str(e)
-        ttk.Button(dialog, text="确定修改", command=on_ok, width=12).grid(row=5, column=0, columnspan=4, pady=10)
+        dialog.bind('<Return>', lambda event: handle_stock_submit(vars, entry_refs, error_label, dialog, True, stock_id))
         error_label = tk.Label(dialog, text="", fg="red", font=("微软雅黑", 10))
-        error_label.grid(row=6, column=0, columnspan=4, pady=(0, 5))
+        error_label.pack(pady=(0, 5), padx=10, anchor=tk.W)
         dialog.after(100, lambda: entry_refs['factory'].focus_set())
-        dialog.wait_window()
+        # 修正字段赋值顺序，确保各字段对应正确的 values 索引
+        # values: [idx, factory, product_no, size, color, unit, in_quantity, price, total, is_settled, in_date]
+        vars["factory"].set(values[1])
+        vars["product_no"].set(values[2])
+        vars["size"].set(values[3])
+        vars["color"].set(values[4])
+        vars["unit"].set(values[5])
+        vars["in_quantity"].set(values[6])
+        vars["price"].set(values[7])
+        vars["total"].set(values[8])
+        vars["in_date"].set(values[10])
     # 修改按钮已在创建时绑定，无需后续循环绑定
+    # 恢复返厂（删除/返厂）按钮
+    btn_del = ttk.Button(stock_toolbar, text="🗑️", width=3, command=on_delete_or_return)
+    btn_del.pack(side=tk.LEFT, padx=3)
+    add_tooltip(btn_del, "删除/返厂")
+
+    # 恢复编辑（修改）按钮
+    btn_edit = ttk.Button(stock_toolbar, text="✏️", width=3, command=open_edit_stock_dialog)
+    btn_edit.pack(side=tk.LEFT, padx=3)
+    add_tooltip(btn_edit, "修改库存")
+
     # 新增结账按钮（批量结账）
     btn_settle = ttk.Button(stock_toolbar, text="结账", width=6)
     btn_settle.pack(side=tk.LEFT, padx=3)
