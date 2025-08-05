@@ -117,13 +117,14 @@ def InventoryPage(parent):
                         bg="#b7f7b0", activebackground="#a0e89c", fg="#1a3d1a", relief=tk.RAISED, bd=2, font=("微软雅黑", 10, "bold"))
     make_btn.pack(side=tk.RIGHT, padx=10)
     # 表格区
-    columns = ("no", "factory", "product_no", "size", "color", "quantity")
+    columns = ("no", "factory", "product_no", "size", "color","unit", "quantity")
     headers = [
         ("no", "序号"),
         ("factory", "厂家"),
         ("product_no", "货号"),
         ("size", "尺码"),
         ("color", "颜色"),
+        ("unit", "单位"),
         ("quantity", "库存数量")
     ]
     tree = ttk.Treeview(frame, columns=columns, show="headings", height=15)
@@ -154,7 +155,7 @@ def InventoryPage(parent):
             filtered.append(r)
         for idx, row in enumerate(filtered, 1):
             # 隐藏id/stock_id，首列为序号
-            values = [idx, row[2], row[3], row[4], row[5], row[6]]
+            values = [idx, row[2], row[3], row[4], row[5], row[6], row[7]]
             tree.insert("", tk.END, values=values, tags=(str(row[0]),))
     def do_search():
         load_data()
@@ -189,10 +190,10 @@ def InventoryPage(parent):
         c.setFont(font_title, 16)
         # 标题居中
         c.drawCentredString(width // 2, height - 50, title)
-        headers = ["序号", "厂家", "货号", "尺码", "颜色", "库存数量"]
+        headers = ["序号", "厂家", "货号", "尺码", "颜色","单位", "库存数量"]
         c.setFont(font_normal, 11)
         y = height - 80
-        col_widths = [40, 80, 80, 60, 60, 80]
+        col_widths = [40, 80, 80, 60, 60,40, 80]
         # 表头（带线）
         x = 60
         from reportlab.lib.colors import HexColor
@@ -209,7 +210,7 @@ def InventoryPage(parent):
         # 数据（带线）
         for idx, row in enumerate(filtered, 1):
             x = 60
-            values = [str(idx), row[2], row[3], row[4], row[5], str(row[6])]
+            values = [str(idx), row[2], row[3], row[4], row[5], str(row[6]),str(row[7])]
             for i, v in enumerate(values):
                 c.setStrokeColor(HexColor('#aaaaaa'))
                 c.rect(x, y, col_widths[i], line_height, stroke=1, fill=0)
