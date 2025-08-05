@@ -43,11 +43,12 @@ def show_outbound_detail(parent, order_no):
     # 第三行：物流信息
     ttk.Label(win, text=f"物流信息: {logistics}", font=("微软雅黑", 11)).pack(anchor=tk.W, padx=24, pady=(0, 8))
     # 明细表格
-    columns = ("idx", "product_no", "color", "size", "quantity", "price", "amount", "item_pay_status", "debt_amount")
+    columns = ("idx", "product_no", "color", "unit", "size", "quantity", "price", "amount", "item_pay_status", "debt_amount")
     headers = [
         ("idx", "序号"),
         ("product_no", "货号"),
         ("color", "颜色"),
+        ("unit", "单位"),
         ("size", "尺码"),
         ("quantity", "出库数量"),
         ("price", "单价"),
@@ -67,6 +68,7 @@ def show_outbound_detail(parent, order_no):
         inv = dbutil.get_inventory_by_id(item[2])
         product_no = inv[2] if inv else ''
         color = inv[4] if inv else ''
+        unit = inv[5] if inv else ''
         size = inv[3] if inv else ''
         quantity = item[3]
         price = item[4] if len(item) > 4 else 0.0
@@ -77,7 +79,7 @@ def show_outbound_detail(parent, order_no):
         debt = item[8] if len(item) > 8 else 0
         total_debt += debt
         tree.insert('', tk.END, values=(
-            idx, product_no, color, size, quantity, f"{price:.2f}", f"{amount:.2f}",
+            idx, product_no, color, unit, size, quantity, f"{price:.2f}", f"{amount:.2f}",
             "已付" if item[6]==1 else "欠款", f"{debt:.2f}"
         ))
     # 右下角统计和按钮
@@ -182,17 +184,18 @@ def show_outbound_detail(parent, order_no):
         # 产品明细表格
         show_kufang = is_kufang.get()
         if show_kufang:
-            product_header = ["序号", "货号", "颜色", "尺码", "数量", "备注"]
-            col_widths = [12*mm, 30*mm, 18*mm, 18*mm, 22*mm, 15*mm]
+            product_header = ["序号", "货号", "颜色", "单位", "尺码", "数量", "备注"]
+            col_widths = [12*mm, 30*mm, 18*mm, 13*mm, 18*mm, 22*mm, 15*mm]
         else:
-            product_header = ["序号", "货号", "颜色", "尺码", "数量", "单价", "金额", "支付", "余款", "备注"]
-            col_widths = [12*mm, 22*mm, 18*mm, 18*mm, 18*mm, 13*mm, 22*mm, 18*mm, 18*mm, 30*mm]
+            product_header = ["序号", "货号", "颜色", "单位", "尺码", "数量", "单价", "金额", "支付", "余款", "备注"]
+            col_widths = [12*mm, 22*mm, 18*mm, 13*mm, 18*mm, 18*mm, 13*mm, 22*mm, 18*mm, 18*mm, 30*mm]
 
         product_data = [product_header]
         for idx, item in enumerate(items, 1):
             inv = dbutil.get_inventory_by_id(item[2])
             product_no = inv[2] if inv else ''
             color = inv[4] if inv else ''
+            unit = inv[5] if inv else ''
             size = inv[3] if inv else ''
             quantity = item[3]
             price = item[4] if len(item) > 4 else 0.0
@@ -202,9 +205,9 @@ def show_outbound_detail(parent, order_no):
             # 备注字段，数据库如有可填，否则留空
             remark = ""
             if show_kufang:
-                row_vals = [idx, product_no, color, size, quantity, remark]
+                row_vals = [idx, product_no, color, unit, size, quantity, remark]
             else:
-                row_vals = [idx, product_no, color, size, quantity, f"{price:.2f}", f"{amount:.2f}", pay_status, f"{debt:.2f}", remark]
+                row_vals = [idx, product_no, color, unit, size, quantity, f"{price:.2f}", f"{amount:.2f}", pay_status, f"{debt:.2f}", remark]
             product_data.append(row_vals)
 
         product_table = Table(product_data, colWidths=col_widths, hAlign='LEFT')
@@ -256,7 +259,7 @@ def show_outbound_detail(parent, order_no):
 
     def update_view():
         show_kufang = is_kufang.get()
-        show_cols = ["idx", "product_no", "color", "size", "quantity"]
+        show_cols = ["idx", "product_no", "color", "unit", "size", "quantity"]
         if not show_kufang:
             show_cols += ["price", "amount", "item_pay_status", "debt_amount"]
         tree['displaycolumns'] = show_cols
