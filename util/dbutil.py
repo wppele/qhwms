@@ -404,6 +404,11 @@ def get_all_debt_records():
     rows = cursor.fetchall()
     conn.close()
     return rows
+def delete_debt_record_by_outboundid(outbound_id):
+    """根据id删除欠账记录"""
+    conn, cursor = get_db_conn()
+    cursor.execute("DELETE FROM debt_record WHERE outbound_id=?", (outbound_id,))
+    commit_and_close(conn)
 
 def init_db():
     """初始化数据库，创建所有表结构，插入默认管理员账户"""

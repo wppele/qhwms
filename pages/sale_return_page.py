@@ -166,7 +166,8 @@ class SaleReturnPage(ttk.Frame):
         # 如果主表总金额为0，删除主表
         if new_total_amount <= 0.01:
             dbutil.delete_outbound_order_by_id(outbound_id)
-            messagebox.showinfo("成功", f"退货成功，已将{product_no} {color} {size} 库存增加{return_qty}，明细和出库单已全部删除")
+            dbutil.delete_debt_record_by_outboundid(outbound_id)
+            messagebox.showinfo("成功", f"退货成功，已将{product_no} {color} {size} 库存增加{return_qty}，明细和出库单及余款结算已全部删除")
             self.refresh()
             return
         order_row = dbutil.get_outbound_order_by_id(outbound_id)
