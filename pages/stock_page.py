@@ -69,6 +69,7 @@ def StockPage(parent, main_win):
                     product_no,
                     size,
                     color,
+                    unit,
                     in_quantity
                 )
                 tk.messagebox.showinfo("成功", "修改成功！")
@@ -120,6 +121,7 @@ def StockPage(parent, main_win):
                         product_no,
                         size,
                         color,
+                        unit,
                         in_quantity
                     )
                     dbutil.insert_stock_log(
@@ -241,41 +243,48 @@ def StockPage(parent, main_win):
             if not settle_date:
                 tk.messagebox.showwarning("提示", "请选择结账日期！")
                 return
-            # 检测已结账物品
+            # 提前筛选出未结账的物品，避免不必要的循环处理
+            unsettled_items = []
             settled_items = []
             for iid in selected:
                 item = tree.item(iid)
                 values = item['values']
-                if values[8] == "是":  # 如果第10列(是否结账)为"是"
+                if values[9] == "是":
                     settled_items.append(values)
-            if settled_items:
-                message = "以下物品已结账，确定要重复结账吗？\n\n"
-                for item in settled_items:
-                    message += f"厂家: {item[1]} 货号: {item[2]} 颜色: {item[4]} 尺码: {item[3]}\n"
-                if not tk.messagebox.askyesno("警告", message):
-                    date_dialog.destroy()
-                    return
-            for iid in selected:
+                else:
+                    unsettled_items.append((iid, item))
+
+            # 记录成功结账和已结账的物品
+            # 使用提前筛选的列表进行处理
+            settled_count = 0
+            already_settled_count = len(settled_items)
+            
+            for iid, item in unsettled_items:
+                values = item['values']
+                # 执行结账
                 dbutil.settle_stock_by_id(iid)
                 # 写入结账日志
-                item = tree.item(iid)
-                values = item['values']
                 dbutil.insert_settle_log(
                     values[1],  # factory
                     values[2],  # product_no
                     values[3],  # size
                     values[4],  # color
-                    int(values[5]),  # in_quantity
-                    float(values[6]),  # price
-                    float(values[7]),  # total
+                    int(values[6]),  # in_quantity
+                    float(values[7]),  # price
+                    float(values[8]),  # total
                     settle_date
                 )
+                settled_count += 1
             # 自动刷新日志页面
             if hasattr(main_win, 'refresh_logs'):
                 main_win.refresh_logs()
             load_stock_data()
             date_dialog.destroy()
-            tk.messagebox.showinfo("结账", f"所选记录已结账！\n结账日期: {settle_date}")
+            message = f"成功结账 {settled_count} 条记录！\n" if settled_count > 0 else "没有新的记录需要结账！\n"
+            if already_settled_count > 0:
+                message += f"{already_settled_count} 条记录已结账，未重复处理。\n"
+            message += f"结账日期: {settle_date}"
+            tk.messagebox.showinfo("结账", message)
         ttk.Button(date_dialog, text="确定", command=confirm_settle).pack(pady=10)
     tree.bind("<Double-1>", on_settle_selected)
 
@@ -433,6 +442,7 @@ def StockPage(parent, main_win):
                         product_no,
                         size,
                         color,
+                        unit,
                         in_quantity
                     )
                     tk.messagebox.showinfo("成功", "修改成功！")
@@ -484,6 +494,7 @@ def StockPage(parent, main_win):
                             product_no,
                             size,
                             color,
+                            unit,
                             in_quantity
                         )
                         dbutil.insert_stock_log(
@@ -538,7 +549,7 @@ def StockPage(parent, main_win):
         def do_return():
             dialog.destroy()
             stock_id = tree.selection()[0]
-            return_qty = int(values[5])
+            return_qty = int(values[6])
             # 写入返厂日志
             dbutil.insert_stock_log(
                 factory, product_no, size, color, return_qty, '返厂', utils.get_current_date()
@@ -550,7 +561,7 @@ def StockPage(parent, main_win):
                 # row: id, stock_id, factory, product_no, size, color, quantity
                 if row[2] == factory and row[3] == product_no and row[5] == color:
                     inv_id = row[0]
-                    inv_qty = row[6]
+                    inv_qty = row[7]
                     if inv_qty >= remain:
                         dbutil.decrease_inventory_by_id(inv_id, remain)
                         remain = 0
@@ -569,14 +580,14 @@ def StockPage(parent, main_win):
         def do_delete():
             dialog.destroy()
             stock_id = tree.selection()[0]
-            del_qty = int(values[5])
+            del_qty = int(values[6])
             # 删除时，优先扣减所有厂家、货号、颜色一致的库存数量
             inventory_rows = dbutil.get_all_inventory()
             remain = del_qty
             for row in inventory_rows:
                 if row[2] == factory and row[3] == product_no and row[5] == color:
                     inv_id = row[0]
-                    inv_qty = row[6]
+                    inv_qty = row[7]
                     if inv_qty >= remain:
                         dbutil.decrease_inventory_by_id(inv_id, remain)
                         remain = 0
@@ -746,41 +757,47 @@ def StockPage(parent, main_win):
             if not settle_date:
                 tk.messagebox.showwarning("提示", "请选择结账日期！")
                 return
-            # 检测已结账物品
+            # 筛选未结账和已结账物品
+            unsettled_items = []
             settled_items = []
             for iid in selected:
                 item = tree.item(iid)
                 values = item['values']
-                if values[8] == "是":  # 如果第10列(是否结账)为"是"
+                if values[9] == "是":
                     settled_items.append(values)
-            if settled_items:
-                message = "以下物品已结账，确定要重复结账吗？\n\n"
-                for item in settled_items:
-                    message += f"厂家: {item[1]} 货号: {item[2]} 颜色: {item[4]} 尺码: {item[3]}\n"
-                if not tk.messagebox.askyesno("警告", message):
-                    date_dialog.destroy()
-                    return
-            for iid in selected:
+                else:
+                    unsettled_items.append((iid, item))
+            
+            # 只处理未结账物品
+            settled_count = 0
+            for iid, item in unsettled_items:
                 dbutil.settle_stock_by_id(iid)
                 # 写入结账日志
-                item = tree.item(iid)
                 values = item['values']
                 dbutil.insert_settle_log(
                     values[1],  # factory
                     values[2],  # product_no
                     values[3],  # size
                     values[4],  # color
-                    int(values[5]),  # in_quantity
-                    float(values[6]),  # price
-                    float(values[7]),  # total
+                    int(values[6]),  # in_quantity
+                    float(values[7]),  # price
+                    float(values[8]),  # total
                     settle_date
                 )
+                settled_count += 1
+            
             # 自动刷新日志页面
             if hasattr(main_win, 'refresh_logs'):
                 main_win.refresh_logs()
             load_stock_data()
             date_dialog.destroy()
-            tk.messagebox.showinfo("结账", f"所选记录已结账！\n结账日期: {settle_date}")
+            
+            # 显示结账结果统计
+            message = f"成功结账 {settled_count} 条记录！\n" if settled_count > 0 else "没有新的记录需要结账！\n"
+            if len(settled_items) > 0:
+                message += f"{len(settled_items)} 条记录已结账，未重复处理。\n"
+            message += f"结账日期: {settle_date}"
+            tk.messagebox.showinfo("结账", message)
         ttk.Button(date_dialog, text="确定", command=confirm_settle).pack(pady=10)
     btn_settle.config(command=batch_settle)
     return frame
