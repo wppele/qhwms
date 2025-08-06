@@ -43,7 +43,7 @@ def show_outbound_detail(parent, order_no):
     # 第三行：物流信息
     ttk.Label(win, text=f"物流信息: {logistics}", font=("微软雅黑", 11)).pack(anchor=tk.W, padx=24, pady=(0, 8))
     # 明细表格
-    columns = ("idx", "product_no", "color", "unit", "size", "quantity", "price", "amount", "item_pay_status", "debt_amount")
+    columns = ("idx", "product_no", "color", "unit", "size", "quantity", "price", "amount")
     headers = [
         ("idx", "序号"),
         ("product_no", "货号"),
@@ -53,8 +53,7 @@ def show_outbound_detail(parent, order_no):
         ("quantity", "出库数量"),
         ("price", "单价"),
         ("amount", "合计"),
-        ("item_pay_status", "支付状态"),
-        ("debt_amount", "余款金额")
+
     ]
     tree = ttk.Treeview(win, columns=columns, show="headings", height=15)
     for col, text in headers:
@@ -62,8 +61,9 @@ def show_outbound_detail(parent, order_no):
         tree.column(col, anchor=tk.CENTER, width=90)
     tree.pack(fill=tk.BOTH, expand=True, padx=24, pady=8)
     total_amount = 0.0
-    total_paid = 0.0
-    total_debt = 0.0
+    # 从出库单主表获取已付金额和未支付金额
+    total_paid = order[5] if len(order) > 5 else 0.0
+    total_debt = order[6] if len(order) > 6 else 0.0
     for idx, item in enumerate(items, 1):
         inv = dbutil.get_inventory_by_id(item[2])
         product_no = inv[2] if inv else ''
@@ -74,18 +74,55 @@ def show_outbound_detail(parent, order_no):
         price = item[4] if len(item) > 4 else 0.0
         amount = item[5] if len(item) > 5 else 0.0
         total_amount += amount
-        paid = item[7] if len(item) > 7 else 0
-        total_paid += paid
-        debt = item[8] if len(item) > 8 else 0
-        total_debt += debt
         tree.insert('', tk.END, values=(
-            idx, product_no, color, unit, size, quantity, f"{price:.2f}", f"{amount:.2f}",
-            "已付" if item[6]==1 else "欠款", f"{debt:.2f}"
+            idx, product_no, color, unit, size, quantity, f"{price:.2f}", f"{amount:.2f}"
         ))
     # 右下角统计和按钮
     bottom = ttk.Frame(win)
     bottom.pack(fill=tk.X, side=tk.BOTTOM, anchor=tk.SE, padx=24, pady=12)
     is_kufang = tk.BooleanVar(value=True)
+    
+    # 总计信息显示框架
+    total_frame = ttk.Frame(bottom)
+    total_frame.pack(side=tk.LEFT, padx=(0, 20))
+    
+    ttk.Label(total_frame, text="总计数量:", font=('微软雅黑', 11)).pack(side=tk.LEFT)
+    total_quantity_var = tk.StringVar(value=f"{int(sum(item[3] for item in items))}")
+    ttk.Label(total_frame, textvariable=total_quantity_var, font=('微软雅黑', 11, 'bold')).pack(side=tk.LEFT, padx=(5, 15))
+    
+    ttk.Label(total_frame, text="总计金额:", font=('微软雅黑', 11)).pack(side=tk.LEFT)
+    total_amount_var = tk.StringVar(value=f"{total_amount:.2f}")
+    ttk.Label(total_frame, textvariable=total_amount_var, font=('微软雅黑', 11, 'bold'), foreground='red').pack(side=tk.LEFT, padx=5)
+
+    ttk.Label(total_frame, text="已付金额:", font=('微软雅黑', 11)).pack(side=tk.LEFT, padx=(15, 0))
+    total_paid_var = tk.StringVar(value=f"{total_paid:.2f}")
+    ttk.Label(total_frame, textvariable=total_paid_var, font=('微软雅黑', 11, 'bold')).pack(side=tk.LEFT, padx=5)
+
+    ttk.Label(total_frame, text="未支付金额:", font=('微软雅黑', 11)).pack(side=tk.LEFT, padx=(15, 0))
+    total_debt_var = tk.StringVar(value=f"{total_debt:.2f}")
+    ttk.Label(total_frame, textvariable=total_debt_var, font=('微软雅黑', 11, 'bold'), foreground='blue').pack(side=tk.LEFT, padx=5)
+    
+    # 更新总计信息显示函数
+    def update_total_display():
+        if is_kufang.get():
+            total_frame.pack_forget()
+        else:
+            total_frame.pack(side=tk.LEFT, padx=(0, 20))
+            total_quantity_var.set(f"{int(sum(item[3] for item in items))}")
+            total_amount_var.set(f"{total_amount:.2f}")
+            total_paid_var.set(f"{total_paid:.2f}")
+            total_debt_var.set(f"{total_debt:.2f}")
+    
+    # 绑定复选框事件
+    is_kufang.trace_add('write', lambda *args: update_total_display())
+    # 初始化总计信息显示
+    update_total_display()
+    
+    # 添加库房视图复选框
+    checkbox_frame = ttk.Frame(bottom)
+    checkbox_frame.pack(side=tk.LEFT, padx=(0, 20))
+    ttk.Checkbutton(checkbox_frame, text="库房视图", variable=is_kufang).pack(side=tk.LEFT)
+    
     def do_export():
         from tkinter import filedialog
         
@@ -187,8 +224,8 @@ def show_outbound_detail(parent, order_no):
             product_header = ["序号", "货号", "颜色", "单位", "尺码", "数量", "备注"]
             col_widths = [12*mm, 30*mm, 18*mm, 13*mm, 18*mm, 22*mm, 15*mm]
         else:
-            product_header = ["序号", "货号", "颜色", "单位", "尺码", "数量", "单价", "金额", "支付", "余款", "备注"]
-            col_widths = [12*mm, 22*mm, 18*mm, 13*mm, 18*mm, 18*mm, 13*mm, 22*mm, 18*mm, 18*mm, 30*mm]
+            product_header = ["序号", "货号", "颜色", "单位", "尺码", "数量", "单价", "金额", "备注"]
+            col_widths = [12*mm, 22*mm, 18*mm, 13*mm, 18*mm, 18*mm, 13*mm, 22*mm, 30*mm]
 
         product_data = [product_header]
         for idx, item in enumerate(items, 1):
@@ -200,14 +237,12 @@ def show_outbound_detail(parent, order_no):
             quantity = item[3]
             price = item[4] if len(item) > 4 else 0.0
             amount = item[5] if len(item) > 5 else 0.0
-            pay_status = "已付" if item[6]==1 else "欠款"
-            debt = item[8] if len(item) > 8 else 0
             # 备注字段，数据库如有可填，否则留空
             remark = ""
             if show_kufang:
                 row_vals = [idx, product_no, color, unit, size, quantity, remark]
             else:
-                row_vals = [idx, product_no, color, unit, size, quantity, f"{price:.2f}", f"{amount:.2f}", pay_status, f"{debt:.2f}", remark]
+                row_vals = [idx, product_no, color, unit, size, quantity, f"{price:.2f}", f"{amount:.2f}", remark]
             product_data.append(row_vals)
 
         product_table = Table(product_data, colWidths=col_widths, hAlign='LEFT')
@@ -228,8 +263,8 @@ def show_outbound_detail(parent, order_no):
             summary_text = (
                 f"总计数量：{int(sum(item[3] for item in items))}    "
                 f"总计金额：{total_amount:.2f}    "
-                f"已缴：{total_paid:.2f}    "
-                f"余款：{total_debt:.2f}"
+                f"已付金额：{total_paid:.2f}    "
+                f"未支付金额：{total_debt:.2f}"
             )
         # 合并为一个单元格，无表格线
         total_info_table = Table([[summary_text]], colWidths=[180*mm], hAlign='LEFT')
@@ -261,7 +296,7 @@ def show_outbound_detail(parent, order_no):
         show_kufang = is_kufang.get()
         show_cols = ["idx", "product_no", "color", "unit", "size", "quantity"]
         if not show_kufang:
-            show_cols += ["price", "amount", "item_pay_status", "debt_amount"]
+            show_cols += ["price", "amount"]
         tree['displaycolumns'] = show_cols
         for w in bottom.pack_slaves():
             w.pack_forget()
@@ -269,10 +304,10 @@ def show_outbound_detail(parent, order_no):
         btn_export.pack(side=tk.RIGHT, padx=(0, 12))
         ttk.Label(bottom, text=f"总计数量: {int(sum(item[3] for item in items))}", font=("微软雅黑", 11, "bold")).pack(side=tk.RIGHT, padx=(0, 18))
         if not show_kufang:
-            ttk.Label(bottom, text=f"余款总计: {total_debt:.2f}", font=("微软雅黑", 11, "bold")).pack(side=tk.RIGHT, padx=(0, 18))
-            ttk.Label(bottom, text=f"已缴总计: {total_paid:.2f}", font=("微软雅黑", 11, "bold")).pack(side=tk.RIGHT, padx=(0, 18))
             ttk.Label(bottom, text=f"总计金额: {total_amount:.2f}", font=("微软雅黑", 11, "bold")).pack(side=tk.RIGHT, padx=(0, 18))
+            ttk.Label(bottom, text=f"已付金额: {total_paid:.2f}", font=("微软雅黑", 11, "bold")).pack(side=tk.RIGHT, padx=(0, 18))
+            ttk.Label(bottom, text=f"未支付金额: {total_debt:.2f}", font=("微软雅黑", 11, "bold")).pack(side=tk.RIGHT, padx=(0, 18))
 
     btn_export = ttk.Button(bottom, text="导出出库单", width=14, command=do_export)
     chk = ttk.Checkbutton(bottom, text="库房出库单", variable=is_kufang, command=update_view)
-    update_view()    
+    update_view()

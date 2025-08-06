@@ -72,13 +72,13 @@ def insert_outbound_order(order_no, customer_id, total_amount, pay_status, total
     outbound_id = cursor.lastrowid
     commit_and_close(conn)
     return outbound_id
-def insert_outbound_item(outbound_id, product_id, quantity, price, amount, item_pay_status, paid_amount, debt_amount, returnable_qty):
+def insert_outbound_item(outbound_id, product_id, quantity, price, amount):
     """插入一条出库单明细记录，含单价price"""
     conn, cursor = get_db_conn()
     cursor.execute('''
-        INSERT INTO outbound_item (outbound_id, product_id, quantity, price, amount, item_pay_status, paid_amount, debt_amount, returnable_qty)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (outbound_id, product_id, quantity, price, amount, item_pay_status, paid_amount, debt_amount, returnable_qty))
+        INSERT INTO outbound_item (outbound_id, product_id, quantity, price, amount)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (outbound_id, product_id, quantity, price, amount))
     commit_and_close(conn)
 def get_all_outbound_orders():
     """获取所有出库单主表记录（outbound_order）"""
@@ -90,7 +90,7 @@ def get_all_outbound_orders():
 def get_outbound_items_by_order(outbound_id):
     """获取指定出库单的所有明细（outbound_item）"""
     conn, cursor = get_db_conn()
-    cursor.execute("SELECT item_id, outbound_id, product_id, quantity, price, amount, item_pay_status, paid_amount, debt_amount, returnable_qty FROM outbound_item WHERE outbound_id=?", (outbound_id,))
+    cursor.execute("SELECT item_id, outbound_id, product_id, quantity, price, amount FROM outbound_item WHERE outbound_id=?", (outbound_id,))
     rows = cursor.fetchall()
     conn.close()
     return rows
@@ -584,10 +584,6 @@ def init_db():
             quantity INTEGER NOT NULL,
             price REAL NOT NULL DEFAULT 0,
             amount REAL NOT NULL,
-            item_pay_status INTEGER NOT NULL DEFAULT 0, -- 0未付/1已付
-            paid_amount REAL NOT NULL DEFAULT 0,
-            debt_amount REAL NOT NULL DEFAULT 0,
-            returnable_qty INTEGER NOT NULL DEFAULT 0,
             FOREIGN KEY(outbound_id) REFERENCES outbound_order(outbound_id)
         )
     ''')
