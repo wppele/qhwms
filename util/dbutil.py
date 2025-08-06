@@ -636,6 +636,61 @@ def get_username_by_account(account):
     conn.close()
     return result[0] if result else account
 
+def insert_debt_record(outbound_id, item_ids, remaining_debt):
+    """插入一条欠账记录到debt_record表"""
+    conn, cursor = get_db_conn()
+    cursor.execute('''
+        INSERT INTO debt_record (outbound_id, item_ids, remaining_debt)
+        VALUES (?, ?, ?)
+    ''', (outbound_id, item_ids, remaining_debt))
+    debt_id = cursor.lastrowid
+    commit_and_close(conn)
+    return debt_id
+
+def insert_payment_record(outbound_id, item_ids, payment_amount, pay_time, pay_method=''):
+    """插入一条付款记录到payment_record表"""
+    conn, cursor = get_db_conn()
+    cursor.execute('''
+        INSERT INTO payment_record (outbound_id, item_ids, payment_amount, pay_time, pay_method)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (outbound_id, item_ids, payment_amount, pay_time, pay_method))
+    payment_id = cursor.lastrowid
+    commit_and_close(conn)
+    return payment_id
+
+
+def get_debt_record_by_outbound_id(outbound_id):
+    """根据出库单ID获取余款记录"""
+    conn, cursor = get_db_conn()
+    cursor.execute('SELECT * FROM debt_record WHERE outbound_id=?', (outbound_id,))
+    result = cursor.fetchone()
+    commit_and_close(conn)
+    return result
+
+
+def update_debt_record(debt_id, remaining_debt):
+    """更新余款记录"""
+    conn, cursor = get_db_conn()
+    cursor.execute('UPDATE debt_record SET remaining_debt=? WHERE debt_id=?', (remaining_debt, debt_id))
+    commit_and_close(conn)
+    return cursor.rowcount > 0
+
+
+def delete_debt_record_by_id(debt_id):
+    """根据ID删除余款记录"""
+    conn, cursor = get_db_conn()
+    cursor.execute('DELETE FROM debt_record WHERE debt_id=?', (debt_id,))
+    commit_and_close(conn)
+    return cursor.rowcount > 0
+
+
+def delete_debt_record_by_outboundid(outbound_id):
+    """根据出库单ID删除余款记录"""
+    conn, cursor = get_db_conn()
+    cursor.execute('DELETE FROM debt_record WHERE outbound_id=?', (outbound_id,))
+    commit_and_close(conn)
+    return cursor.rowcount > 0
+
 
 if __name__ == "__main__":
     init_db()

@@ -246,6 +246,13 @@ def OutboundDialog(parent, cart_list, customer_name=None):
     total_debt_var = tk.StringVar(value="0.00")
     ttk.Entry(bottom_frame, textvariable=total_debt_var, width=12, state='readonly').pack(side=tk.LEFT, padx=6)
 
+    # 付款方式
+    ttk.Label(bottom_frame, text="付款方式:", font=('微软雅黑', 11)).pack(side=tk.LEFT, padx=(12, 0))
+    payment_methods = ['微信', '支付宝', '现金', '银联']
+    pay_method_var = tk.StringVar(value=payment_methods[0])
+    pay_method_combobox = ttk.Combobox(bottom_frame, textvariable=pay_method_var, values=payment_methods, width=10)
+    pay_method_combobox.pack(side=tk.LEFT, padx=6)
+
     # 自动合计金额
     def calc_total():
         total = 0.0
@@ -429,6 +436,7 @@ def OutboundDialog(parent, cart_list, customer_name=None):
         
         # 4. 生成出库单（写入数据库）
         try:
+
             total = float(total_var.get())
             now_str = now.strftime('%Y-%m-%d %H:%M:%S')
             
@@ -446,19 +454,38 @@ def OutboundDialog(parent, cart_list, customer_name=None):
                 order_no_var.get(), customer_id, total, pay_status, float(total_paid_var.get()), float(total_debt_var.get()), now_str
             )
             
+            # 初始化item_ids列表
+            item_ids = []
+            
             for idx, item in enumerate(tree.get_children()):
                 vals = tree.item(item)['values']
                 product_id = vals[7]  # product_id
                 quantity = int(vals[4]) if vals[4] else 0
                 price = float(vals[5]) if vals[5] else 0
                 amount = float(vals[6]) if vals[6] else 0
+                size = vals[3]  # 重新获取size变量
                 
-                dbutil.insert_outbound_item(
+                item_id = dbutil.insert_outbound_item(
                     outbound_id, product_id, quantity, price, amount
                 )
                 dbutil.update_inventory_size_by_id(product_id, size)
                 dbutil.decrease_inventory_by_id(product_id, quantity)
+                item_ids.append(str(item_id))
         
+            # 6. 收集所有item_ids
+            item_ids_str = ','.join(item_ids)
+            
+            # 7. 如果余款金额不为0，写入debt_record表
+            remaining_debt = float(total_debt_var.get())
+            if remaining_debt > 0:
+                 dbutil.insert_debt_record(outbound_id, item_ids_str, remaining_debt)
+                  
+            # 8. 如果有支付金额，写入payment_record表
+            payment_amount = float(total_paid_var.get())
+            if payment_amount > 0:
+                 pay_method = pay_method_var.get()
+                 dbutil.insert_payment_record(outbound_id, item_ids_str, payment_amount, now_str, pay_method)
+
         except Exception as e:
             messagebox.showerror("错误", f"保存出库单失败：{e}")
             return

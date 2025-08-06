@@ -99,8 +99,8 @@ class PaymentRecordPage(ttk.Frame):
             return
         detail_win = tk.Toplevel(self)
         detail_win.title(f"订单明细 - 订单号：{order_no}")
-        columns = ("product_no", "size", "color", "quantity", "price", "amount", "item_pay_status", "paid_amount", "debt_amount")
-        headers = ["货号", "尺码", "颜色", "数量", "单价", "金额", "支付状态", "已付", "待付"]
+        columns = ("product_no", "size", "color", "quantity", "price", "amount")
+        headers = ["货号", "尺码", "颜色", "数量", "单价", "金额"]
         tree = ttk.Treeview(detail_win, columns=columns, show="headings", height=10)
         for col, txt in zip(columns, headers):
             tree.heading(col, text=txt)
@@ -113,5 +113,5 @@ class PaymentRecordPage(ttk.Frame):
             size = inv[4] if inv else ''
             color = inv[5] if inv else ''
             price = row[4] if len(row) > 4 else 0.0
-            tree.insert('', tk.END, values=(product_no, size, color, row[3], f"{price:.2f}", row[5], row[6], row[7], row[8]))
+            tree.insert('', tk.END, values=(product_no, size, color, row[3], f"{price:.2f}", row[5]))
         ttk.Button(detail_win, text="关闭", command=detail_win.destroy).pack(pady=8)

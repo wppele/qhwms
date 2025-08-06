@@ -142,18 +142,59 @@ class SaleReturnPage(ttk.Frame):
         order_no = vals[0]
         outbound_id = dbutil.get_outbound_id_by_order_no(order_no)
         from datetime import datetime
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         # 退款金额=退货数量*单价，单价为vals[6]
         try:
             price = float(vals[6])
         except Exception:
             price = 0.0
         refund_amount = -abs(return_qty * price)
+        original_refund_amount = refund_amount
+        remark = "退货退款"
+        
+        # 检查该订单是否有余款
+        debt_record = dbutil.get_debt_record_by_outbound_id(outbound_id)
+        if debt_record:
+            debt_id = debt_record[0]
+            remaining_debt = float(debt_record[3])
+            if remaining_debt > 0:
+                # 计算可抵扣金额
+                deduct_amount = min(remaining_debt, abs(refund_amount))
+                # 更新退款金额
+                refund_amount += deduct_amount  # 因为refund_amount是负数，所以这里是减去抵扣金额
+                # 更新余款记录
+                new_remaining_debt = remaining_debt - deduct_amount
+                if new_remaining_debt <= 0.01:
+                    dbutil.delete_debt_record_by_id(debt_id)
+                else:
+                    dbutil.update_debt_record(debt_id, new_remaining_debt)
+                remark = f"余款变更: 抵扣{deduct_amount:.2f}元"
+                
+                # 更新出库单主表的已付金额和余款
+                order_row = dbutil.get_outbound_order_by_id(outbound_id)
+                if order_row:
+                    total = float(order_row[3]) if order_row[3] else 0.0
+                    total_paid = float(order_row[5]) if order_row[5] else 0.0
+                    total_debt = float(order_row[6]) if order_row[6] else 0.0
+                    
+                    new_total_paid = total_paid + deduct_amount
+                    new_total_debt = max(total - new_total_paid, 0)
+                    
+                    if new_total_debt <= 0.01:
+                        pay_status = 2
+                    elif new_total_paid > 0:
+                        pay_status = 1
+                    else:
+                        pay_status = 0
+                    
+                    dbutil.update_outbound_order_amount(outbound_id, total, new_total_paid, new_total_debt, pay_status)
+        
         dbutil.insert_payment_record(
             outbound_id,
             str(item_id),
             refund_amount,
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "退款"
+            now_str,
+            f"退款-{remark}"
         )
         # 同步修改出库单主表金额
         # 退货后重新统计该出库单所有明细的总金额
