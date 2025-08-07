@@ -303,6 +303,50 @@ def get_customer_by_id(customer_id):
     row = cursor.fetchone()
     conn.close()
     return row
+
+def update_outbound_payment_status(outbound_id):
+    """同步更新出库单主表和明细表的已付/待付金额"""
+    conn, cursor = get_db_conn()
+    try:
+        # 汇总所有payment_record的payment_amount
+        cursor.execute("SELECT SUM(payment_amount) FROM payment_record WHERE outbound_id=?", (outbound_id,))
+        paid = cursor.fetchone()[0] or 0.0
+        
+        # 获取主表总金额
+        cursor.execute("SELECT total_amount FROM outbound_order WHERE outbound_id=?", (outbound_id,))
+        total = cursor.fetchone()[0] or 0.0
+        debt = total - paid
+        
+        # 更新主表
+        pay_status = 2 if debt <= 0.01 else (1 if paid > 0 else 0)
+        cursor.execute("UPDATE outbound_order SET total_paid=?, total_debt=?, pay_status=? WHERE outbound_id=?", 
+                      (paid, debt, pay_status, outbound_id))
+        
+        # 明细表全部同步为部分/全额已付
+        cursor.execute("SELECT item_id, amount FROM outbound_item WHERE outbound_id=?", (outbound_id,))
+        items = cursor.fetchall()
+        
+        # 按比例分配已付金额到明细
+        for item_id, amount in items:
+            if paid >= total and total > 0:
+                paid_amt = amount
+                debt_amt = 0.0
+                item_pay_status = 1
+            elif total > 0:
+                ratio = amount / total
+                paid_amt = round(paid * ratio, 2)
+                debt_amt = amount - paid_amt
+                item_pay_status = 1 if debt_amt <= 0.01 else 0
+            else:
+                paid_amt = 0.0
+                debt_amt = amount
+                item_pay_status = 0
+            cursor.execute("UPDATE outbound_item SET paid_amount=?, debt_amount=?, item_pay_status=? WHERE item_id=?", 
+                          (paid_amt, debt_amt, item_pay_status, item_id))
+        
+        conn.commit()
+    finally:
+        conn.close()
 def update_customer(cid, name, address, phone, logistics_info):
     """根据id更新客户信息（customer_info表）"""
     conn, cursor = get_db_conn()

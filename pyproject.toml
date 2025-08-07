@@ -7,4 +7,5 @@ requires-python = ">=3.12"
 dependencies = [
     "pywin32>=311",
     "reportlab>=4.4.2",
+    "tkcalendar>=1.6.1",
 ]
