@@ -448,7 +448,7 @@ def OutboundDialog(parent, cart_list, customer_name=None):
                     break
             
             # 确定支付状态
-            pay_status = "未支付" if float(total_paid_var.get()) == 0 else "部分支付" if float(total_paid_var.get()) < total else "已支付"
+            pay_status = 0 if float(total_paid_var.get()) == 0 else 1 if float(total_paid_var.get()) < total else 2
             
             outbound_id = dbutil.insert_outbound_order(
                 order_no_var.get(), customer_id, total, pay_status, float(total_paid_var.get()), float(total_debt_var.get()), now_str

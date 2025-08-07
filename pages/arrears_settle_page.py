@@ -234,7 +234,7 @@ class ArrearsSettlePage(ttk.Frame):
         return False
 
     def settle_outbound_order_and_items(self, outbound_id):
-        # 结清主表和明细表
+        # 结清主表
         conn = dbutil.sqlite3.connect(dbutil.DB_PATH)
         cursor = conn.cursor()
         # 获取主表合计金额
@@ -244,8 +244,6 @@ class ArrearsSettlePage(ttk.Frame):
             total_amount = float(row[0])
             # 更新主表
             cursor.execute("UPDATE outbound_order SET pay_status=2, total_paid=?, total_debt=0 WHERE outbound_id=?", (total_amount, outbound_id))
-            # 更新明细表
-            cursor.execute("UPDATE outbound_item SET item_pay_status=1, paid_amount=amount, debt_amount=0 WHERE outbound_id=?", (outbound_id,))
         conn.commit()
         conn.close()
 

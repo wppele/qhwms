@@ -21,7 +21,7 @@ class SaleReturnPage(ttk.Frame):
         ttk.Entry(filter_frame, textvariable=self.search_product_no, width=14).pack(side=tk.LEFT, padx=4)
         ttk.Button(filter_frame, text="筛选", command=self.refresh, width=8).pack(side=tk.LEFT, padx=8)
 
-        columns = ("order_no", "item_id", "product_no", "color", "size", "quantity", "price", "amount", "return_qty")
+        columns = ("order_no", "item_id", "product_no", "color", "size", "quantity", "price", "amount")
         self.tree = ttk.Treeview(self, columns=columns, show="headings")
         self.tree.heading("order_no", text="订单号")
         self.tree.heading("item_id", text="明细ID")
@@ -31,7 +31,7 @@ class SaleReturnPage(ttk.Frame):
         self.tree.heading("quantity", text="数量")
         self.tree.heading("price", text="单价")
         self.tree.heading("amount", text="金额")
-        self.tree.heading("return_qty", text="可退数量")
+        
         self.tree.column("order_no", width=130, anchor=tk.CENTER)
         self.tree.column("item_id", width=70, anchor=tk.CENTER)
         self.tree.column("product_no", width=100, anchor=tk.CENTER)
@@ -40,7 +40,7 @@ class SaleReturnPage(ttk.Frame):
         self.tree.column("quantity", width=70, anchor=tk.CENTER)
         self.tree.column("price", width=70, anchor=tk.E)
         self.tree.column("amount", width=80, anchor=tk.E)
-        self.tree.column("return_qty", width=80, anchor=tk.CENTER)
+        
         self.tree.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         # 鼠标悬停表格项时显示提示
         def show_tooltip(event):
@@ -80,18 +80,14 @@ class SaleReturnPage(ttk.Frame):
                     size = inv[3]
                 else:
                     product_no = color = size = ''
-                # 获取可退数量（returnable_qty字段）
-                try:
-                    returnable_qty = item[9] if len(item) > 9 else quantity
-                except Exception:
-                    returnable_qty = quantity
+                
                 # 筛选逻辑
                 if order_no_kw and order_no_kw not in str(order_no):
                     continue
                 if product_no_kw and product_no_kw not in str(product_no):
                     continue
-                if returnable_qty > 0:
-                    self.tree.insert('', tk.END, values=(order_no, item_id, product_no, color, size, quantity, price, amount, returnable_qty))
+                
+                self.tree.insert('', tk.END, values=(order_no, item_id, product_no, color, size, quantity, price, amount))
 
     def on_double_click(self, event):
         item_id = None
@@ -105,9 +101,8 @@ class SaleReturnPage(ttk.Frame):
         color = vals[3]
         size = vals[4]
         quantity = int(float(vals[5]))
-        returnable_qty = int(float(vals[8]))
-        # 弹窗输入退货数量（以可退数量为准）
-        return_qty = self.ask_return_qty(returnable_qty)
+        # 弹窗输入退货数量（以数量为准）
+        return_qty = self.ask_return_qty(quantity)
         if return_qty is None or return_qty <= 0:
             return
         # 更新库存
@@ -117,8 +112,7 @@ class SaleReturnPage(ttk.Frame):
         else:
             messagebox.showerror("错误", "未找到对应库存，无法退货")
             return
-        # 更新出库明细表的returnable_qty字段和quantity字段
-        dbutil.decrease_returnable_qty_by_item_id(item_id, return_qty)
+        # 更新出库明细表的quantity字段
         dbutil.decrease_outbound_item_quantity(item_id, return_qty)
         # 同步更新该明细的总金额（amount=price*quantity）
         # 先查最新quantity

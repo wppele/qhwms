@@ -73,13 +73,15 @@ def insert_outbound_order(order_no, customer_id, total_amount, pay_status, total
     commit_and_close(conn)
     return outbound_id
 def insert_outbound_item(outbound_id, product_id, quantity, price, amount):
-    """插入一条出库单明细记录，含单价price"""
+    """插入一条出库单明细记录，含单价price，返回item_id"""
     conn, cursor = get_db_conn()
     cursor.execute('''
         INSERT INTO outbound_item (outbound_id, product_id, quantity, price, amount)
         VALUES (?, ?, ?, ?, ?)
     ''', (outbound_id, product_id, quantity, price, amount))
+    item_id = cursor.lastrowid
     commit_and_close(conn)
+    return item_id
 def get_all_outbound_orders():
     """获取所有出库单主表记录（outbound_order）"""
     conn, cursor = get_db_conn()
@@ -119,10 +121,7 @@ def decrease_outbound_item_quantity(item_id, qty):
     conn, cursor = get_db_conn()
     cursor.execute("UPDATE outbound_item SET quantity = quantity - ? WHERE item_id=? AND quantity >= ?", (qty, item_id, qty))
     commit_and_close(conn)
-def decrease_returnable_qty_by_item_id(item_id, qty):
-    conn, cursor = get_db_conn()
-    cursor.execute("UPDATE outbound_item SET returnable_qty = returnable_qty - ? WHERE item_id=? AND returnable_qty >= ?", (qty, item_id, qty))
-    commit_and_close(conn)
+
 def delete_outbound_item_by_id(item_id):
     conn, cursor = get_db_conn()
     cursor.execute("DELETE FROM outbound_item WHERE item_id=?", (item_id,))
@@ -305,7 +304,7 @@ def get_customer_by_id(customer_id):
     return row
 
 def update_outbound_payment_status(outbound_id):
-    """同步更新出库单主表和明细表的已付/待付金额"""
+    """同步更新出库单主表的已付/待付金额"""
     conn, cursor = get_db_conn()
     try:
         # 汇总所有payment_record的payment_amount
@@ -321,28 +320,6 @@ def update_outbound_payment_status(outbound_id):
         pay_status = 2 if debt <= 0.01 else (1 if paid > 0 else 0)
         cursor.execute("UPDATE outbound_order SET total_paid=?, total_debt=?, pay_status=? WHERE outbound_id=?", 
                       (paid, debt, pay_status, outbound_id))
-        
-        # 明细表全部同步为部分/全额已付
-        cursor.execute("SELECT item_id, amount FROM outbound_item WHERE outbound_id=?", (outbound_id,))
-        items = cursor.fetchall()
-        
-        # 按比例分配已付金额到明细
-        for item_id, amount in items:
-            if paid >= total and total > 0:
-                paid_amt = amount
-                debt_amt = 0.0
-                item_pay_status = 1
-            elif total > 0:
-                ratio = amount / total
-                paid_amt = round(paid * ratio, 2)
-                debt_amt = amount - paid_amt
-                item_pay_status = 1 if debt_amt <= 0.01 else 0
-            else:
-                paid_amt = 0.0
-                debt_amt = amount
-                item_pay_status = 0
-            cursor.execute("UPDATE outbound_item SET paid_amount=?, debt_amount=?, item_pay_status=? WHERE item_id=?", 
-                          (paid_amt, debt_amt, item_pay_status, item_id))
         
         conn.commit()
     finally:
