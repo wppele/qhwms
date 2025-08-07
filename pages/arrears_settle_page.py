@@ -46,7 +46,8 @@ class ArrearsSettlePage(ttk.Frame):
             ttk.Entry(filter_frame, textvariable=self.end_date, width=12).pack(side=tk.LEFT, padx=4)
             ttk.Label(filter_frame, text="(格式: yyyy-mm-dd)", font=('Arial', 8)).pack(side=tk.LEFT)
         ttk.Button(filter_frame, text="筛选", command=self.refresh, width=8).pack(side=tk.LEFT, padx=8)
-        ttk.Button(filter_frame, text="导出对账单", command=self.export_statement_pdf, width=10).pack(side=tk.RIGHT, padx=8)
+        ttk.Button(filter_frame, text="生成对账单", command=self.generate_statement, width=10).pack(side=tk.LEFT, padx=8)
+
         columns = ("serial", "order_no", "customer_name", "total_amount", "total_paid", "remaining_debt", "outbound_date")
         self.tree = ttk.Treeview(self, columns=columns, show="headings")
         self.tree.heading("serial", text="序号")
@@ -261,68 +262,162 @@ class ArrearsSettlePage(ttk.Frame):
         conn.commit()
         conn.close()
 
-    def export_statement_pdf(self):
-        # 获取所有欠款记录
-        debts = dbutil.get_all_debt_records()
-        if not debts:
-            messagebox.showinfo("提示", "没有欠款记录可导出！")
-            return
-
-        # 按客户分组统计
-        customer_data = {}
-        for debt in debts:
-            debt_id, outbound_id, item_ids, remaining_debt = debt
-            order = dbutil.get_outbound_order_by_id(outbound_id)
-            if not order:
-                continue
-            order_no = order[1]
-            customer_id = order[2]
-            # 获取出库日期并只取前10个字符（日期部分）
-            outbound_date = order[7][:10]
-            customer = dbutil.get_customer_by_id(customer_id)
-            if not customer:
-                continue
-            customer_name = customer[1]
-            total_amount = order[3]
-            # 处理可能的非数值total_paid
+    def generate_statement(self):
+        """生成对账单"""
+        # 创建日期选择对话框
+        dialog = tk.Toplevel(self)
+        dialog.title("选择对账单周期")
+        dialog.grab_set()
+        dialog.update_idletasks()
+        w, h = 360, 180
+        sw = dialog.winfo_screenwidth()
+        sh = dialog.winfo_screenheight()
+        x = (sw - w) // 2
+        y = (sh - h) // 2
+        dialog.geometry(f"{w}x{h}+{x}+{y}")
+        
+        ttk.Label(dialog, text="请选择对账单周期:", font=("微软雅黑", 11)).pack(pady=(12, 8))
+        
+        # 开始日期
+        frm_start = ttk.Frame(dialog)
+        frm_start.pack(pady=4, fill=tk.X, padx=20)
+        ttk.Label(frm_start, text="开始日期:", font=("微软雅黑", 10)).pack(side=tk.LEFT)
+        start_date_var = tk.StringVar()
+        if has_tkcalendar:
+            start_date_entry = DateEntry(frm_start, textvariable=start_date_var, width=12, date_pattern='yyyy-mm-dd')
+            start_date_entry.pack(side=tk.LEFT, padx=4)
+        else:
+            ttk.Entry(frm_start, textvariable=start_date_var, width=14).pack(side=tk.LEFT, padx=4)
+            ttk.Label(frm_start, text="(格式: yyyy-mm-dd)", font=('Arial', 8)).pack(side=tk.LEFT)
+        
+        # 结束日期
+        frm_end = ttk.Frame(dialog)
+        frm_end.pack(pady=4, fill=tk.X, padx=20)
+        ttk.Label(frm_end, text="结束日期:", font=("微软雅黑", 10)).pack(side=tk.LEFT)
+        end_date_var = tk.StringVar()
+        if has_tkcalendar:
+            end_date_entry = DateEntry(frm_end, textvariable=end_date_var, width=12, date_pattern='yyyy-mm-dd')
+            end_date_entry.pack(side=tk.LEFT, padx=4)
+        else:
+            ttk.Entry(frm_end, textvariable=end_date_var, width=14).pack(side=tk.LEFT, padx=4)
+            ttk.Label(frm_end, text="(格式: yyyy-mm-dd)", font=('Arial', 8)).pack(side=tk.LEFT)
+        
+        result = {'start_date': None, 'end_date': None}
+        
+        def on_ok():
+            start_date = start_date_var.get().strip()
+            end_date = end_date_var.get().strip()
+            
+            if not start_date or not end_date:
+                messagebox.showwarning("提示", "请选择开始日期和结束日期！", parent=dialog)
+                return
+            
+            # 验证日期格式
             try:
-                total_paid = float(order[5])
-            except (ValueError, TypeError):
-                total_paid = 0.0
+                from datetime import datetime
+                datetime.strptime(start_date, '%Y-%m-%d')
+                datetime.strptime(end_date, '%Y-%m-%d')
+            except ValueError:
+                messagebox.showwarning("提示", "日期格式不正确，请使用yyyy-mm-dd格式！", parent=dialog)
+                return
+            
+            result['start_date'] = start_date
+            result['end_date'] = end_date
+            dialog.destroy()
+        
+        btn_frm = ttk.Frame(dialog)
+        btn_frm.pack(pady=12)
+        ttk.Button(btn_frm, text="确定", command=on_ok).pack(side=tk.LEFT, padx=10)
+        ttk.Button(btn_frm, text="取消", command=dialog.destroy).pack(side=tk.LEFT, padx=10)
+        
+        dialog.wait_window()
+        
+        if result['start_date'] and result['end_date']:
+            # 按客户分组生成对账单
+            self.create_statements_by_customer(result['start_date'], result['end_date'])
 
-            # 获取订单明细
-            outbound_items = dbutil.get_outbound_items_by_order(outbound_id)
-            item_details = []
-            for item in outbound_items:
-                item_id, outbound_id, product_id, quantity, price, amount = item
-                inventory = dbutil.get_inventory_by_id(product_id)
-                if inventory:
-                    factory, product_no, size, color, unit, _ = inventory[1:]
-                    subtotal = float(quantity) * float(price)
-                    # 添加出库日期到明细
-                    item_details.append([order_no, outbound_date, product_no, color, unit, size, quantity, price, f"{subtotal:.2f}"])
-
+    def create_statements_by_customer(self, start_date, end_date):
+        """按客户生成对账单"""
+        conn = dbutil.sqlite3.connect(dbutil.DB_PATH)
+        cursor = conn.cursor()
+        
+        try:
+            # 获取所有未结清的订单(pay_status != 2)
+            cursor.execute("""
+                SELECT o.outbound_id, o.customer_id, o.order_no, o.total_amount, o.total_paid, o.total_debt, o.create_time
+                FROM outbound_order o
+                WHERE o.pay_status != 2
+            """)
+            orders = cursor.fetchall()
+            
             # 按客户分组
-            if customer_name not in customer_data:
-                customer_data[customer_name] = {
-                    'total_amount': 0.0,
-                    'total_paid': 0.0,
-                    'remaining_debt': 0.0,
-                    'orders': []
-                }
-            # 处理可能的非数值total_amount
-            try:
-                customer_data[customer_name]['total_amount'] += float(total_amount)
-            except (ValueError, TypeError):
-                customer_data[customer_name]['total_amount'] += 0.0
-            customer_data[customer_name]['total_paid'] += float(total_paid)
-            # 处理可能的非数值remaining_debt
-            try:
-                customer_data[customer_name]['remaining_debt'] += float(remaining_debt)
-            except (ValueError, TypeError):
-                customer_data[customer_name]['remaining_debt'] += 0.0
-            customer_data[customer_name]['orders'].extend(item_details)
-
-        # 使用PDFUtil工具类生成对账单
-        if PDFUtil.create_customer_statement_pdf(customer_data):
-            messagebox.showinfo("成功", "对账单已成功导出！")
+            customer_orders = {}
+            for order in orders:
+                outbound_id, customer_id, order_no, total_amount, total_paid, total_debt, create_time = order
+                
+                # 获取客户名称
+                cursor.execute("SELECT name FROM customer_info WHERE id=?", (customer_id,))
+                customer = cursor.fetchone()
+                if not customer:
+                    continue
+                customer_name = customer[0]
+                
+                # 格式化日期
+                outbound_date = create_time.split(' ')[0] if create_time else ''
+                
+                if customer_name not in customer_orders:
+                    customer_orders[customer_name] = {
+                        'customer_id': customer_id,
+                        'orders': [],
+                        'previous_debt': 0.0,
+                        'current_debt': 0.0
+                    }
+                
+                # 判断订单日期是否在选择区间内
+                if outbound_date and outbound_date >= start_date and outbound_date <= end_date:
+                    # 当前区间内的订单
+                    customer_orders[customer_name]['current_debt'] += float(total_debt)
+                    customer_orders[customer_name]['orders'].append(outbound_id)
+                elif outbound_date and outbound_date < start_date:
+                    # 区间之前的订单
+                    customer_orders[customer_name]['previous_debt'] += float(total_debt)
+                    customer_orders[customer_name]['orders'].append(outbound_id)
+            
+            # 生成对账单
+            from datetime import datetime
+            current_date = datetime.now().strftime("%Y-%m-%d")
+            bill_period = f"{start_date} 至 {end_date}"
+            
+            for customer_name, data in customer_orders.items():
+                # 跳过没有订单的客户
+                if not data['orders']:
+                    continue
+                
+                # 生成对账单号
+                # 生成对账单号: DZ+年月日+第几个对账单
+                statement_no = f"DZ{current_date.replace('-', '')}{len(data['orders'])}"
+                
+                # 计算总金额
+                total_amount = data['previous_debt'] + data['current_debt']
+                
+                # 存储订单ID，用逗号分隔
+                outbound_ids = ','.join(map(str, data['orders']))
+                
+                # 插入对账单记录
+                cursor.execute("""
+                    INSERT INTO statement (
+                        statement_no, customer_name, outbound_ids, previous_debt, 
+                        current_debt, total_amount, bill_period, issue_date
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    statement_no, customer_name, outbound_ids, data['previous_debt'],
+                    data['current_debt'], total_amount, bill_period, current_date
+                ))
+            
+            conn.commit()
+            messagebox.showinfo("成功", f"对账单已生成，共 {len(customer_orders)} 份！")
+        except Exception as e:
+            conn.rollback()
+            messagebox.showerror("错误", f"生成对账单失败：{str(e)}")
+        finally:
+            conn.close()

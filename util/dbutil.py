@@ -431,11 +431,88 @@ def delete_debt_record_by_outboundid(outbound_id):
     cursor.execute("DELETE FROM debt_record WHERE outbound_id=?", (outbound_id,))
     commit_and_close(conn)
 
+def get_order_details(outbound_ids, start_date=None, end_date=None):
+    """
+    根据订单ID获取订单详情，并支持日期范围筛选
+    :param outbound_ids: 订单ID列表
+    :param start_date: 开始日期 (YYYY-MM-DD)
+    :param end_date: 结束日期 (YYYY-MM-DD)
+    :return: 订单详情列表
+    """
+    order_details = []
+    conn, cursor = get_db_conn()
+    try:
+        for order_id in outbound_ids:
+            # 查询订单信息
+            cursor.execute("SELECT order_no, create_time FROM outbound_order WHERE outbound_id = ?", (order_id.strip(),))
+            order_info = cursor.fetchone()
+            if not order_info:
+                continue
+
+            order_no, outbound_date = order_info
+
+            # 截取出库日期的日期部分
+            if ' ' in outbound_date:
+                outbound_date = outbound_date.split(' ')[0]
+
+            # 日期范围筛选
+            if start_date or end_date:
+                order_date = outbound_date.split(' ')[0] if ' ' in outbound_date else outbound_date
+                if start_date and order_date < start_date:
+                    continue
+                if end_date and order_date > end_date:
+                    continue
+
+            # 查询订单项
+            cursor.execute("SELECT product_id, quantity, price, amount FROM outbound_item WHERE outbound_id = ?", (order_id.strip(),))
+            items = cursor.fetchall()
+
+            for item in items:
+                product_id, quantity, price, amount = item
+                
+                # 查询库存信息获取产品详情
+                cursor.execute("SELECT product_no, color, unit, size FROM inventory WHERE id = ?", (product_id,))
+                inventory_info = cursor.fetchone()
+                if not inventory_info:
+                    product_no, product_color, unit, size = "", "", "", ""
+                else:
+                    product_no, product_color, unit, size = inventory_info
+
+                order_details.append([
+                    order_no,
+                    outbound_date,
+                    product_no,
+                    product_color,
+                    unit,
+                    size,
+                    quantity,
+                    f"{price:.2f}",
+                    f"{amount:.2f}"
+                ])
+    finally:
+        conn.close()
+    return order_details
+
 def init_db():
     """初始化数据库，创建所有表结构，插入默认管理员账户"""
     ensure_db_dir()
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
+    # 对账单表（Statement）
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS statement (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            statement_no TEXT NOT NULL,
+            customer_name TEXT NOT NULL,
+            outbound_ids TEXT NOT NULL, -- 多个订单ID用逗号分隔
+            previous_debt REAL NOT NULL DEFAULT 0,
+            current_debt REAL NOT NULL DEFAULT 0,
+            total_amount REAL NOT NULL DEFAULT 0,
+            bill_period TEXT NOT NULL,
+            issue_date TEXT NOT NULL
+        )
+    ''')
+    
     # 新增暂存出库单主表（draft_order）
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS draft_order (

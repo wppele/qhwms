@@ -63,6 +63,7 @@ def show_main_page(username, root=None):
     nav_tree.insert(sale_id, 'end', text='付款记录查询', iid='payment_record_query')
     nav_tree.insert(sale_id, 'end', text='销售退货', iid='sale_return')
     nav_tree.insert(sale_id, 'end', text='余款结算', iid='arrears_settle')
+    nav_tree.insert(sale_id, 'end', text='客户对账单', iid='customer_statement')
 
     # 基础信息管理为一级菜单，包含客户信息、账户管理
     base_id = nav_tree.insert('', 'end', text='基础信息管理', open=False)
@@ -101,11 +102,13 @@ def show_main_page(username, root=None):
     page_payment_record = PaymentRecordPage(content_frame)
     from pages.arrears_settle_page import ArrearsSettlePage
     page_arrears_settle = ArrearsSettlePage(content_frame)
+    from pages.customer_statement_page import CustomerStatementPage
+    page_customer_statement = CustomerStatementPage(content_frame)
     page_sale_return = SaleReturnPage(content_frame)
 
     # 页面切换逻辑
     def show_page(page):
-        for f in (welcome_frame, page_stock, page_settle_log, page_stock_log, page_inventory, page_customer, page_outbound_manage, page_payment_record, page_arrears_settle, page_sale_return, page_account_manage):
+        for f in (welcome_frame, page_stock, page_settle_log, page_stock_log, page_inventory, page_customer, page_outbound_manage, page_payment_record, page_arrears_settle, page_sale_return, page_account_manage, page_customer_statement):
             f.pack_forget()
         page.pack(fill=tk.BOTH, expand=True)
         # 切换到日志页面时自动刷新
@@ -144,6 +147,8 @@ def show_main_page(username, root=None):
             show_page(page_sale_return)
         elif sel == 'arrears_settle':
             show_page(page_arrears_settle)
+        elif sel == 'customer_statement':
+            show_page(page_customer_statement)
     nav_tree.bind('<<TreeviewSelect>>', on_nav_select)
     # 不自动选中任何菜单项
 
