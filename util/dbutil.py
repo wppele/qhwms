@@ -537,6 +537,7 @@ def init_db():
             username TEXT NOT NULL,
             account TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
+            unipassword TEXT,
             role INTEGER NOT NULL DEFAULT 1 -- 0:管理员, 1:库管
         )
     ''')
@@ -723,6 +724,38 @@ def get_username_by_account(account):
     result = cursor.fetchone()
     conn.close()
     return result[0] if result else account
+
+def get_user_unipassword_by_username(username):
+    """
+    根据用户名获取用户的unipassword
+    :param username: 用户名
+    :return: unipassword值，如果不存在返回None
+    """
+    conn, cursor = get_db_conn()
+    cursor.execute("SELECT unipassword FROM users WHERE username=?", (username,))
+    result = cursor.fetchone()
+    conn.close()
+    return result[0] if result else None
+
+
+def update_user_unipassword(username, new_password):
+    """
+    更新用户的unipassword
+    :param username: 用户名
+    :param new_password: 新密码
+    :return: 更新是否成功
+    """
+    conn, cursor = get_db_conn()
+    try:
+        cursor.execute("UPDATE users SET unipassword=? WHERE username=?", (new_password, username))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"更新密码失败: {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
 
 def insert_debt_record(outbound_id, item_ids, remaining_debt):
     """插入一条欠账记录到debt_record表"""

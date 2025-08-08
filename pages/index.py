@@ -95,7 +95,7 @@ def show_main_page(username, root=None):
     page_settle_log = SettleLogPage(content_frame)
     page_stock_log = StockLogPage(content_frame)
     page_inventory = InventoryPage(content_frame)  # 新增库存页面实例
-    page_customer = CustomerPage(content_frame)
+    page_customer = CustomerPage(content_frame, username)
     page_account_manage = AccountManagePage(content_frame)
     page_outbound_manage = OutboundManagePage(content_frame)
     from pages.payment_record_page import PaymentRecordPage
@@ -136,7 +136,40 @@ def show_main_page(username, root=None):
         elif sel == 'inventory':  # 销售开单
             show_page(page_inventory)
         elif sel == 'customer_info':
-            show_page(page_customer)
+            # 检查当前用户的unipassword
+            from util.dbutil import get_user_unipassword_by_username
+            unipassword = get_user_unipassword_by_username(username)
+            
+            if not unipassword or unipassword.strip() == '':
+                # 如果unipassword为空，直接打开客户信息页面
+                show_page(page_customer)
+            else:
+                # 如果unipassword不为空，弹出密码输入框
+                def check_password():
+                    password = password_entry.get()
+                    if password == unipassword:
+                        password_window.destroy()
+                        show_page(page_customer)
+                    else:
+                        messagebox.showerror("错误", "密码输入错误，请重试！")
+                        password_entry.delete(0, tk.END)
+                        password_entry.focus_set()
+                
+                password_window = tk.Toplevel(main_win)
+                password_window.title("密码验证")
+                password_window.resizable(False, False)
+                password_window.grab_set()  # 模态窗口
+                center_window(password_window, 300, 150)
+                
+                ttk.Label(password_window, text="请输入密码:", font=('微软雅黑', 12)).pack(pady=20)
+                password_entry = ttk.Entry(password_window, show='*', width=20)
+                password_entry.pack(pady=5)
+                password_entry.focus_set()
+                
+                btn_frame = ttk.Frame(password_window)
+                btn_frame.pack(pady=10)
+                ttk.Button(btn_frame, text="确定", command=check_password).pack(side=tk.LEFT, padx=10)
+                ttk.Button(btn_frame, text="取消", command=password_window.destroy).pack(side=tk.LEFT)
         elif sel == 'account_manage':
             show_page(page_account_manage)
         elif sel == 'outbound_manage':

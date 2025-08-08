@@ -3,18 +3,108 @@ from tkinter import ttk, messagebox
 from util import dbutil
 from util.utils import center_window
 
-def CustomerPage(parent):
+def CustomerPage(parent, username):
     frame = ttk.Frame(parent)
     # 工具栏
     toolbar = ttk.Frame(frame)
     toolbar.pack(fill=tk.X, pady=5)
-    # 图标按钮
+    # 左侧图标按钮
     btn_add = ttk.Button(toolbar, text="➕", width=3)
     btn_add.pack(side=tk.LEFT, padx=3)
     btn_edit = ttk.Button(toolbar, text="✏️", width=3)
     btn_edit.pack(side=tk.LEFT, padx=3)
     btn_del = ttk.Button(toolbar, text="🗑️", width=3)
     btn_del.pack(side=tk.LEFT, padx=3)
+    # 右侧密码设置按钮
+    right_toolbar = ttk.Frame(toolbar)
+    right_toolbar.pack(side=tk.RIGHT, padx=10)
+    btn_password = ttk.Button(right_toolbar, text="密码设置", width=8)
+    btn_password.pack(side=tk.RIGHT)
+
+    # 密码设置功能实现
+    def handle_password_setting():
+        from util.dbutil import get_user_unipassword_by_username, update_user_unipassword
+        current_password = get_user_unipassword_by_username(username)
+
+        if not current_password or current_password.strip() == '':
+            # 设置新密码
+            def set_new_password():
+                new_pwd = pwd_entry.get()
+                confirm_pwd = confirm_entry.get()
+                # 允许密码为空
+                new_pwd = new_pwd.strip()
+                if new_pwd != confirm_pwd:
+                    messagebox.showwarning("提示", "两次输入的密码不一致！")
+                    return
+                update_user_unipassword(username, new_pwd)
+                dialog.destroy()
+                messagebox.showinfo("成功", "密码设置成功！")
+
+            dialog = tk.Toplevel(frame)
+            dialog.title("设置密码")
+            dialog.transient(frame)
+            dialog.grab_set()
+            center_window(dialog, 300, 220)
+
+            ttk.Label(dialog, text="设置新密码:", font=("微软雅黑", 10)).grid(row=0, column=0, sticky=tk.W, padx=10, pady=10)
+            pwd_entry = ttk.Entry(dialog, show="*", width=20)
+            pwd_entry.grid(row=0, column=1, padx=5)
+
+            ttk.Label(dialog, text="确认密码:", font=("微软雅黑", 10)).grid(row=1, column=0, sticky=tk.W, padx=10, pady=10)
+            confirm_entry = ttk.Entry(dialog, show="*", width=20)
+            confirm_entry.grid(row=1, column=1, padx=5)
+
+            # 添加提示信息
+            ttk.Label(dialog, text="提示: 新密码为空则关闭密码保护", font=('微软雅黑', 9, 'italic'), foreground='gray').grid(row=2, column=0, columnspan=2, padx=10, pady=(5, 10), sticky=tk.W)
+            btn_frame = ttk.Frame(dialog)
+            btn_frame.grid(row=3, column=0, columnspan=2, pady=5)
+            ttk.Button(btn_frame, text="确定", command=set_new_password).pack(side=tk.LEFT, padx=10)
+            ttk.Button(btn_frame, text="取消", command=dialog.destroy).pack(side=tk.LEFT)
+
+        else:
+            # 修改密码
+            def change_password():
+                old_pwd = old_pwd_entry.get()
+                new_pwd = new_pwd_entry.get()
+                confirm_pwd = confirm_pwd_entry.get()
+
+                if old_pwd != current_password:
+                    messagebox.showwarning("提示", "原密码输入错误！")
+                    return
+                # 允许密码为空
+                new_pwd = new_pwd.strip()
+                if new_pwd != confirm_pwd:
+                    messagebox.showwarning("提示", "两次输入的新密码不一致！")
+                    return
+                update_user_unipassword(username, new_pwd)
+                dialog.destroy()
+                messagebox.showinfo("成功", "密码修改成功！")
+
+            dialog = tk.Toplevel(frame)
+            dialog.title("修改密码")
+            dialog.transient(frame)
+            dialog.grab_set()
+            center_window(dialog, 300, 180)
+
+            ttk.Label(dialog, text="原密码:", font=("微软雅黑", 10)).grid(row=0, column=0, sticky=tk.W, padx=10, pady=8)
+            old_pwd_entry = ttk.Entry(dialog, show="*", width=20)
+            old_pwd_entry.grid(row=0, column=1, padx=5)
+
+            ttk.Label(dialog, text="新密码:", font=("微软雅黑", 10)).grid(row=1, column=0, sticky=tk.W, padx=10, pady=8)
+            new_pwd_entry = ttk.Entry(dialog, show="*", width=20)
+            new_pwd_entry.grid(row=1, column=1, padx=5)
+
+            ttk.Label(dialog, text="确认新密码:", font=("微软雅黑", 10)).grid(row=2, column=0, sticky=tk.W, padx=10, pady=8)
+            confirm_pwd_entry = ttk.Entry(dialog, show="*", width=20)
+            confirm_pwd_entry.grid(row=2, column=1, padx=5)
+
+            # 添加提示信息
+            ttk.Label(dialog, text="提示: 新密码为空则关闭密码保护", font=('微软雅黑', 9, 'italic'), foreground='gray').grid(row=3, column=0, columnspan=2, padx=10, pady=(5, 10), sticky=tk.W)
+            btn_frame = ttk.Frame(dialog)
+            btn_frame.grid(row=4, column=0, columnspan=2, pady=5)
+            ttk.Button(btn_frame, text="确定", command=change_password).pack(side=tk.LEFT, padx=10)
+            ttk.Button(btn_frame, text="取消", command=dialog.destroy).pack(side=tk.LEFT)
+
     # tooltip
     def add_tooltip(widget, text):
         tip = tk.Toplevel(widget)
@@ -32,9 +122,12 @@ def CustomerPage(parent):
             tip.withdraw()
         widget.bind('<Enter>', enter)
         widget.bind('<Leave>', leave)
+    # 为按钮添加提示
     add_tooltip(btn_add, "新增客户")
     add_tooltip(btn_edit, "修改客户信息")
     add_tooltip(btn_del, "删除客户信息")
+    add_tooltip(btn_password, "设置/修改密码")
+    btn_password.config(command=handle_password_setting)
     # 表格
     columns = ("no", "name", "address", "phone", "logistics_info")
     headers = [
