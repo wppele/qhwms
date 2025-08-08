@@ -208,10 +208,10 @@ class PDFUtil:
         return PDFUtil.create_pdf(file_path, elements)
 
     @staticmethod
-    def create_customer_statement_pdf(customer_data, file_path=None):
+    def create_customer_statement_pdf(statement_data, file_path=None):
         """
         导出客户对账单PDF
-        :param customer_data: 客户数据，格式为 {客户名: {total_amount, total_paid, remaining_debt, orders: []}}
+        :param statement_data: 对账单数据
         :param file_path: 保存路径，默认为None（会弹出保存对话框）
         """
         # 注册字体
@@ -232,56 +232,79 @@ class PDFUtil:
         styles = getSampleStyleSheet()
 
         # 修改标题样式使用中文字体
-        styles['Title'].fontName = font_name
-        styles['Title'].fontSize = 18
+        styles.add(ParagraphStyle(name='CNTitle', fontName=font_name, fontSize=18, alignment=1, leading=24))
+        styles.add(ParagraphStyle(name='CNNormal', fontName=font_name, fontSize=11, leading=16))
+        styles.add(ParagraphStyle(name='CNBold', fontName=font_name, fontSize=11, leading=16, bold=True))
 
         # 添加标题
-        elements.append(Paragraph("千辉鞋业-客户对账单", styles['Title']))
-        elements.append(Spacer(1, 6))
+        elements.append(Paragraph("千辉鞋业-客户对账单", styles['CNTitle']))
+        elements.append(Spacer(1, 12))
 
-        # 为每个客户生成对账单
-        for customer_name, data in customer_data.items():
-            elements.append(Spacer(1, 6))
+        # 客户信息和日期区域
+        customer_info = [
+            [f"客户名称: {statement_data['customer_name']}", f"账单周期: {statement_data['bill_period']}", f"出账日期: {statement_data['issue_date']}"]
+        ]
+        customer_info_table = Table(customer_info, colWidths=[90, 200, 120])
+        customer_info_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), font_name),
+            ('FONTSIZE', (0, 0), (-1, -1), 11),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('PADDING', (0, 0), (-1, -1), 5),
+        ]))
+        elements.append(customer_info_table)
+        elements.append(Spacer(1, 8))
 
-            # 表头
-            headers = ["订单号", "出库日期", "货号", "颜色", "单位", "尺码", "数量", "单价", "金额"]
-            # 创建表格数据
-            table_data = [headers] + data['orders']
-            # 添加客户信息和金额总计行
-            summary_row = [
-                f"客户: {customer_name}",  # 订单号列
-                f"订单金额: {data['total_amount']:.2f}",  # 出库日期列
-                "",  # 货号列
-                "",  # 颜色列
-                f"已付: {data['total_paid']:.2f}",  # 单位列
-                "",  # 尺码列
-                "",  # 数量列
-                f"欠款: {data['remaining_debt']:.2f}",  # 单价列
-                ""   # 金额列
+        # 金额信息区域
+        amount_info = [
+            [
+                f"往期欠款: {statement_data['previous_debt']:.2f}", 
+                f"本期欠款: {statement_data['current_debt']:.2f}", 
+                f"总计金额: {statement_data['total_amount']:.2f}"
             ]
-            table_data.append(summary_row)
-            # 创建表格
-            table = Table(table_data)
-            # 计算汇总行索引
-            summary_row_index = len(table_data) - 1
-            # 添加表格样式
-            table.setStyle(TableStyle([
-                ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), font_name),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                ('GRID', (0, 0), (-1, -1), 1, colors.black),
-                ('FONTNAME', (0, 1), (-1, summary_row_index - 1), font_name),
-                ('FONTNAME', (0, summary_row_index), (7, summary_row_index), font_name),
-                ('BOTTOMPADDING', (0, summary_row_index), (-1, summary_row_index), 8),
-                ('TOPPADDING', (0, summary_row_index), (-1, summary_row_index), 8),
-                # 合并单元格
-                ('SPAN', (1, summary_row_index), (3, summary_row_index)),
-                ('SPAN', (4, summary_row_index), (6, summary_row_index)),
-                ('SPAN', (7, summary_row_index), (8, summary_row_index))
-            ]))
-            elements.append(table)
-            elements.append(Spacer(1, 36))
+        ]
+        amount_info_table = Table(amount_info, colWidths=[100, 100, 100])
+        amount_info_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), font_name),
+            ('FONTSIZE', (0, 0), (-1, -1), 11),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.red),
+            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+        ]))
+        elements.append(amount_info_table)
+        elements.append(Spacer(1, 12))
+
+        # 订单表格
+        headers = ["订单号", "出库日期", "货号", "颜色", "单位", "尺码", "数量", "单价", "金额"]
+        table_data = [headers] + statement_data['orders']
+        table = Table(table_data)
+        table.setStyle(TableStyle([
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), font_name),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTNAME', (0, 1), (-1, -1), font_name),
+            ('ALIGN', (7, 1), (8, -1), 'RIGHT'),  # 单价和金额靠右对齐
+        ]))
+        elements.append(table)
+        elements.append(Spacer(1, 12))
+
+        # 总计金额行
+        total_amount = statement_data['total_amount']
+        upper_total = statement_data['upper_total']
+        total_info = [
+            [f"应付总金额: {total_amount:.2f}"],
+            [f"大写: {upper_total}"]
+        ]
+        total_info_table = Table(total_info, colWidths=[300])
+        total_info_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), font_name),
+            ('FONTSIZE', (0, 0), (0, 0), 12),
+            ('FONTSIZE', (0, 1), (0, 1), 10),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.red),
+            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+            ('BOLDFONT', (0, 0), (0, 0), 1),
+        ]))
+        elements.append(total_info_table)
 
         # 生成PDF
         return PDFUtil.create_pdf(file_path, elements)

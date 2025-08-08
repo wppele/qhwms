@@ -170,31 +170,31 @@ class CustomerStatementPage(ttk.Frame):
         # 顶部标题
         ttk.Label(frame, text="千辉鞋业-客户对账单", font=("微软雅黑", 18, "bold")).pack(pady=10)
 
-        # 客户信息和日期区域
+        # 客户信息和日期区域（标签和内容合并到一个单元格）
         info_frame1 = ttk.Frame(frame)
         info_frame1.pack(fill=tk.X, pady=5)
 
-        ttk.Label(info_frame1, text="客户名称:", width=12, anchor=tk.W).grid(row=0, column=0, padx=5)
-        ttk.Label(info_frame1, text=values[2], font=("微软雅黑", 10, "bold")).grid(row=0, column=1, padx=5)
+        # 客户名称
+        ttk.Label(info_frame1, text=f"客户名称: {values[2]}", font=("微软雅黑", 10, "bold"), anchor=tk.W).grid(row=0, column=0, padx=5, sticky="w")
 
-        ttk.Label(info_frame1, text="账单周期:", width=12, anchor=tk.W).grid(row=0, column=2, padx=5)
-        ttk.Label(info_frame1, text=values[7]).grid(row=0, column=3, padx=5)
+        # 账单周期
+        ttk.Label(info_frame1, text=f"账单周期: {values[7]}", anchor=tk.W).grid(row=0, column=1, padx=5, sticky="w")
 
-        ttk.Label(info_frame1, text="出账日期:", width=12, anchor=tk.W).grid(row=0, column=4, padx=5)
-        ttk.Label(info_frame1, text=values[8]).grid(row=0, column=5, padx=5)
+        # 出账日期
+        ttk.Label(info_frame1, text=f"出账日期: {values[8]}", anchor=tk.W).grid(row=0, column=2, padx=5, sticky="w")
 
-        # 金额信息区域
+        # 金额信息区域（标签和内容合并到一个单元格并靠右对齐）
         info_frame2 = ttk.Frame(frame)
         info_frame2.pack(fill=tk.X, pady=5)
 
-        ttk.Label(info_frame2, text="往期欠款:", width=12, anchor=tk.W).grid(row=0, column=0, padx=5)
-        ttk.Label(info_frame2, text=f"{float(values[4]):.2f}", foreground="red").grid(row=0, column=1, padx=5)
+        # 往期欠款
+        ttk.Label(info_frame2, text=f"往期欠款: {float(values[4]):.2f}", foreground="red", anchor=tk.E).grid(row=0, column=0, padx=5, sticky="e", ipadx=20)
 
-        ttk.Label(info_frame2, text="本期欠款:", width=12, anchor=tk.W).grid(row=0, column=2, padx=5)
-        ttk.Label(info_frame2, text=f"{float(values[5]):.2f}", foreground="red").grid(row=0, column=3, padx=5)
+        # 本期欠款
+        ttk.Label(info_frame2, text=f"本期欠款: {float(values[5]):.2f}", foreground="red", anchor=tk.E).grid(row=0, column=1, padx=5, sticky="e", ipadx=20)
 
-        ttk.Label(info_frame2, text="总计金额:", width=12, anchor=tk.W).grid(row=0, column=4, padx=5)
-        ttk.Label(info_frame2, text=f"{float(values[6]):.2f}", foreground="red", font=("微软雅黑", 10, "bold")).grid(row=0, column=5, padx=5)
+        # 总计金额
+        ttk.Label(info_frame2, text=f"总计金额: {float(values[6]):.2f}", foreground="red", font=("微软雅黑", 10, "bold"), anchor=tk.E).grid(row=0, column=2, padx=5, sticky="e", ipadx=20)
 
         # 订单表格
         columns = ("order_no", "outbound_date", "product_no", "color", "unit", "size", "quantity", "price", "amount")
@@ -238,27 +238,30 @@ class CustomerStatementPage(ttk.Frame):
         for item in order_details:
             tree.insert('', 'end', values=item)
 
-        # 总计金额行
-        total_frame = ttk.Frame(frame)
-        total_frame.pack(fill=tk.X, pady=10)
+        # 布局调整：创建主容器
+        main_container = ttk.Frame(frame)
+        main_container.pack(fill=tk.X, pady=10)
+
+        # 按钮区域放到左侧
+        btn_frame = ttk.Frame(main_container)
+        btn_frame.pack(side=tk.LEFT, padx=10)
+
+        # 导出PDF按钮
+        ttk.Button(btn_frame, text="导出PDF", command=lambda: self.export_to_pdf(values, order_details)).pack(pady=5, fill=tk.X)
+
+        # 关闭按钮
+        ttk.Button(btn_frame, text="关闭", command=detail_window.destroy).pack(pady=5, fill=tk.X)
+
+        # 总计金额行放到右侧
+        total_frame = ttk.Frame(main_container)
+        total_frame.pack(side=tk.RIGHT, padx=10)
 
         total_amount = float(values[6])
         upper_total = self.convert_to_upper(total_amount)
 
-        ttk.Label(total_frame, text="应付总金额:", width=15, anchor=tk.E, font=("微软雅黑", 12, "bold")).grid(row=0, column=0, padx=10)
-        ttk.Label(total_frame, text=f"{total_amount:.2f}", foreground="red", font=("微软雅黑", 12, "bold")).grid(row=0, column=1, padx=5)
-        ttk.Label(total_frame, text="大写:", width=10, anchor=tk.E).grid(row=1, column=0, padx=10)
-        ttk.Label(total_frame, text=upper_total, foreground="red", font=("微软雅黑", 10, "bold")).grid(row=1, column=1, padx=5)
-
-        # 按钮区域
-        btn_frame = ttk.Frame(frame)
-        btn_frame.pack(pady=20)
-
-        # 导出PDF按钮
-        ttk.Button(btn_frame, text="导出PDF", command=lambda: self.export_to_pdf(values, order_details)).pack(side=tk.LEFT, padx=10)
-
-        # 关闭按钮
-        ttk.Button(btn_frame, text="关闭", command=detail_window.destroy).pack(side=tk.LEFT, padx=10)
+        # 合并label和内容到一个单元格，并靠右对齐
+        ttk.Label(total_frame, text=f"应付总金额: {total_amount:.2f}", foreground="red", font=('微软雅黑', 12, 'bold'), anchor=tk.E).grid(row=0, column=0, padx=10, pady=2, sticky='e')
+        ttk.Label(total_frame, text=f"大写: {upper_total}", foreground="red", font=('微软雅黑', 10, 'bold'), anchor=tk.E).grid(row=1, column=0, padx=10, pady=2, sticky='e')
 
     def get_order_details(self, outbound_ids, start_date=None, end_date=None):
         """
@@ -335,6 +338,7 @@ class CustomerStatementPage(ttk.Frame):
         previous_debt = float(statement_data[4])
         current_debt = float(statement_data[5])
         total_amount = float(statement_data[6])
+        upper_total = self.convert_to_upper(total_amount)
 
         # 格式化订单详情数据
         formatted_orders = []
@@ -351,19 +355,17 @@ class CustomerStatementPage(ttk.Frame):
                 item[8]   # 金额
             ])
 
-        # 准备PDF数据
+        # 准备PDF数据，与对账单详情对话框格式一致
         pdf_data = {
-            customer_name: {
-                'total_amount': total_amount,
-                'total_paid': 0.0,  # 假设未支付
-                'remaining_debt': total_amount,
-                'orders': formatted_orders,
-                'bill_period': bill_period,
-                'issue_date': issue_date,
-                'previous_debt': previous_debt,
-                'current_debt': current_debt
-            }
+            'customer_name': customer_name,
+            'bill_period': bill_period,
+            'issue_date': issue_date,
+            'previous_debt': previous_debt,
+            'current_debt': current_debt,
+            'total_amount': total_amount,
+            'upper_total': upper_total,
+            'orders': formatted_orders
         }
 
-        # 调用PDFUtil生成PDF
+        # 调用PDF工具生成对账单
         PDFUtil.create_customer_statement_pdf(pdf_data)
