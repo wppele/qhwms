@@ -1,15 +1,18 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 from util.utils import center_window
 from pages.stock_page import StockPage
 from pages.record_pages import SettleLogPage, StockLogPage
 from pages.inventory_page import InventoryPage  # 新增库存页面导入
 from pages.customer_page import CustomerPage
 from pages.account_manage_page import AccountManagePage
-
 from pages.outbound_manage_page import OutboundManagePage
 from pages.sale_return_page import SaleReturnPage
 from pages.welcome_page import WelcomeFrame
+from pages.payment_record_page import PaymentRecordPage
+from pages.arrears_settle_page import ArrearsSettlePage
+from pages.customer_statement_page import CustomerStatementPage
+from util.dbutil import get_user_unipassword_by_username
 
 def show_main_page(username, root=None):
     if root is not None:
@@ -90,33 +93,55 @@ def show_main_page(username, root=None):
     welcome_frame = WelcomeFrame(content_frame)
     welcome_frame.pack(fill=tk.BOTH, expand=True)
 
-    # 各功能页面Frame
-    page_stock = StockPage(content_frame, main_win)
-    page_settle_log = SettleLogPage(content_frame)
-    page_stock_log = StockLogPage(content_frame)
-    page_inventory = InventoryPage(content_frame)  # 新增库存页面实例
-    page_customer = CustomerPage(content_frame, username)
-    page_account_manage = AccountManagePage(content_frame)
-    page_outbound_manage = OutboundManagePage(content_frame)
-    from pages.payment_record_page import PaymentRecordPage
-    page_payment_record = PaymentRecordPage(content_frame)
-    from pages.arrears_settle_page import ArrearsSettlePage
-    page_arrears_settle = ArrearsSettlePage(content_frame)
-    from pages.customer_statement_page import CustomerStatementPage
-    page_customer_statement = CustomerStatementPage(content_frame)
-    page_sale_return = SaleReturnPage(content_frame)
+    # 页面延迟初始化字典
+    pages = {}
+    page_classes = {
+        'stock': (StockPage, (content_frame, main_win)),
+        'settle_log': (SettleLogPage, (content_frame,)),
+        'stock_log': (StockLogPage, (content_frame,)),
+        'inventory': (InventoryPage, (content_frame,)),
+        'customer': (CustomerPage, (content_frame, username)),
+        'account_manage': (AccountManagePage, (content_frame,)),
+        'outbound_manage': (OutboundManagePage, (content_frame,)),
+        'payment_record': (PaymentRecordPage, (content_frame,)),
+        'arrears_settle': (ArrearsSettlePage, (content_frame,)),
+        'customer_statement': (CustomerStatementPage, (content_frame,)),
+        'sale_return': (SaleReturnPage, (content_frame,))
+    }
 
     # 页面切换逻辑
-    def show_page(page):
-        for f in (welcome_frame, page_stock, page_settle_log, page_stock_log, page_inventory, page_customer, page_outbound_manage, page_payment_record, page_arrears_settle, page_sale_return, page_account_manage, page_customer_statement):
+    def show_page(page_key):
+        # 先隐藏所有已创建的页面
+        for f in list(pages.values()) + [welcome_frame]:
             f.pack_forget()
+
+        # 如果页面未初始化，则创建它
+        if page_key not in pages:
+            page_class, args = page_classes[page_key]
+            pages[page_key] = page_class(*args)
+            # 确保新创建的页面正确初始化
+            content_frame.update_idletasks()
+
+        # 显示选中的页面
+        page = pages[page_key]
         page.pack(fill=tk.BOTH, expand=True)
-        # 切换到日志页面时自动刷新
+        # 确保页面在最顶层
+        page.lift()
+        # 确保页面获得焦点
+        page.focus_set()
+        # 刷新页面数据
         if hasattr(page, 'refresh'):
             page.refresh()
+        # 强制重绘
+        content_frame.update()
+        content_frame.update_idletasks()
 
     # 默认显示欢迎页
-    show_page(welcome_frame)
+    # 欢迎页不参与延迟初始化，保持原样
+    welcome_frame.pack(fill=tk.BOTH, expand=True)
+    welcome_frame.lift()
+    welcome_frame.focus_set()
+    content_frame.update_idletasks()
     # 不选中任何菜单项，等用户点击后再切换页面
 
     # 提供全局刷新方法供库存页面调用
@@ -128,13 +153,13 @@ def show_main_page(username, root=None):
             return
         sel = sel[0]
         if sel == 'up_stock':
-            show_page(page_stock)
+            show_page('stock')
         elif sel == 'settle_log':
-            show_page(page_settle_log)
+            show_page('settle_log')
         elif sel == 'stock_log':
-            show_page(page_stock_log)
+            show_page('stock_log')
         elif sel == 'inventory':  # 销售开单
-            show_page(page_inventory)
+            show_page('inventory')
         elif sel == 'customer_info':
             # 检查当前用户的unipassword
             from util.dbutil import get_user_unipassword_by_username
@@ -142,14 +167,14 @@ def show_main_page(username, root=None):
             
             if not unipassword or unipassword.strip() == '':
                 # 如果unipassword为空，直接打开客户信息页面
-                show_page(page_customer)
+                show_page('customer')
             else:
                 # 如果unipassword不为空，弹出密码输入框
                 def check_password():
                     password = password_entry.get()
                     if password == unipassword:
                         password_window.destroy()
-                        show_page(page_customer)
+                        show_page('customer')
                     else:
                         messagebox.showerror("错误", "密码输入错误，请重试！")
                         password_entry.delete(0, tk.END)
@@ -173,17 +198,17 @@ def show_main_page(username, root=None):
                 ttk.Button(btn_frame, text="确定", command=check_password).pack(side=tk.LEFT, padx=10)
                 ttk.Button(btn_frame, text="取消", command=password_window.destroy).pack(side=tk.LEFT)
         elif sel == 'account_manage':
-            show_page(page_account_manage)
+            show_page('account_manage')
         elif sel == 'outbound_manage':
-            show_page(page_outbound_manage)
+            show_page('outbound_manage')
         elif sel == 'payment_record_query':
-            show_page(page_payment_record)
+            show_page('payment_record')
         elif sel == 'sale_return':
-            show_page(page_sale_return)
+            show_page('sale_return')
         elif sel == 'arrears_settle':
-            show_page(page_arrears_settle)
+            show_page('arrears_settle')
         elif sel == 'customer_statement':
-            show_page(page_customer_statement)
+            show_page('customer_statement')
     nav_tree.bind('<<TreeviewSelect>>', on_nav_select)
     # 不自动选中任何菜单项
 

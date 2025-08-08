@@ -155,10 +155,13 @@ class CustomerStatementPage(ttk.Frame):
         # 获取订单详情
         order_details = self.get_order_details(values[3])
 
-        # 创建详情对话框
+        # 创建详情对话框，设置为主窗口的子窗口
         detail_window = tk.Toplevel(self.parent)
         detail_window.title("千辉鞋业-客户对账单")
         detail_window.resizable(True, True)
+
+        # 设置为父窗口的临时窗口，避免成为独立顶级窗口
+        detail_window.transient(self.parent)
 
         # 设置窗口置顶
         detail_window.attributes('-topmost', True)

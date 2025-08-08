@@ -21,12 +21,18 @@ class ArrearsSettlePage(ttk.Frame):
         # 筛选区
         filter_frame = ttk.Frame(self)
         filter_frame.pack(fill=tk.X, padx=10, pady=8)
-        ttk.Label(filter_frame, text="订单号:").pack(side=tk.LEFT)
+        # 确保frame正确初始化
+        filter_frame.update_idletasks()
+        # 使用框架组织筛选组件，确保更好的对齐
+        left_filter_frame = ttk.Frame(filter_frame)
+        left_filter_frame.pack(side=tk.LEFT, fill=tk.Y)
+
+        ttk.Label(left_filter_frame, text="订单号:").pack(side=tk.LEFT)
         self.search_order_no = tk.StringVar()
-        ttk.Entry(filter_frame, textvariable=self.search_order_no, width=16).pack(side=tk.LEFT, padx=4)
-        ttk.Label(filter_frame, text="客户:").pack(side=tk.LEFT)
+        ttk.Entry(left_filter_frame, textvariable=self.search_order_no, width=16).pack(side=tk.LEFT, padx=4)
+        ttk.Label(left_filter_frame, text="客户:").pack(side=tk.LEFT)
         self.search_customer = tk.StringVar()
-        ttk.Entry(filter_frame, textvariable=self.search_customer, width=14).pack(side=tk.LEFT, padx=4)
+        ttk.Entry(left_filter_frame, textvariable=self.search_customer, width=14).pack(side=tk.LEFT, padx=4)
         # 添加日期区间筛选
         ttk.Label(filter_frame, text="日期:").pack(side=tk.LEFT, padx=(10,0))
         self.start_date = tk.StringVar(value='')
@@ -47,9 +53,16 @@ class ArrearsSettlePage(ttk.Frame):
         else:
             ttk.Entry(filter_frame, textvariable=self.end_date, width=12).pack(side=tk.LEFT, padx=4)
             ttk.Label(filter_frame, text="(格式: yyyy-mm-dd)", font=('Arial', 8)).pack(side=tk.LEFT)
-        ttk.Button(filter_frame, text="筛选", command=self.refresh, width=8).pack(side=tk.LEFT, padx=8)
-        ttk.Button(filter_frame, text="生成对账单", command=self.generate_statement, width=10).pack(side=tk.LEFT, padx=8)
-        ttk.Button(filter_frame, text="批量结算", command=self.batch_settle, width=10).pack(side=tk.LEFT, padx=8)
+        # 按钮区域单独放在右侧
+        button_frame = ttk.Frame(filter_frame)
+        button_frame.pack(side=tk.RIGHT, fill=tk.Y)
+
+        ttk.Button(button_frame, text="筛选", command=self.refresh, width=8).pack(side=tk.RIGHT, padx=8)
+        ttk.Button(button_frame, text="生成对账单", command=self.generate_statement, width=10).pack(side=tk.RIGHT, padx=8)
+        ttk.Button(button_frame, text="批量结算", command=self.batch_settle, width=10).pack(side=tk.RIGHT, padx=8)
+
+        # 确保所有组件正确绘制
+        filter_frame.update_idletasks()
 
         columns = ("serial", "order_no", "customer_name", "total_amount", "total_paid", "remaining_debt", "outbound_date")
         self.tree = ttk.Treeview(self, columns=columns, show="headings")
