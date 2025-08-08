@@ -165,6 +165,8 @@ def show_main_page(username, root=None):
                 password_entry = ttk.Entry(password_window, show='*', width=20)
                 password_entry.pack(pady=5)
                 password_entry.focus_set()
+                # 绑定回车键到确定按钮
+                password_entry.bind('<Return>', lambda event: check_password())
                 
                 btn_frame = ttk.Frame(password_window)
                 btn_frame.pack(pady=10)

@@ -44,7 +44,7 @@ def CustomerPage(parent, username):
             dialog.title("设置密码")
             dialog.transient(frame)
             dialog.grab_set()
-            center_window(dialog, 300, 220)
+            center_window(dialog, 310, 220)
 
             ttk.Label(dialog, text="设置新密码:", font=("微软雅黑", 10)).grid(row=0, column=0, sticky=tk.W, padx=10, pady=10)
             pwd_entry = ttk.Entry(dialog, show="*", width=20)
