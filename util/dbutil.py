@@ -303,6 +303,79 @@ def get_customer_by_id(customer_id):
     conn.close()
     return row
 
+def batch_insert_stocks(stocks):
+    """批量插入库存记录
+    stocks: 库存信息列表，每个元素为(factory, product_no, size, color, unit, in_quantity, price, total, in_date)元组
+    返回成功插入的记录数
+    """
+    if not stocks:
+        return 0
+    conn, cursor = get_db_conn()
+    try:
+        # 开始事务
+        conn.execute('BEGIN TRANSACTION')
+        
+        # 批量插入库存记录
+        cursor.executemany(
+            "INSERT INTO stock (factory, product_no, size, color, unit, in_quantity, price, total, is_settled, in_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)",
+            stocks
+        )
+        stock_count = cursor.rowcount
+        
+        # 获取刚插入的库存记录ID
+        cursor.execute("SELECT id FROM stock ORDER BY id DESC LIMIT ?", (stock_count,))
+        stock_ids = [row[0] for row in cursor.fetchall()]
+        stock_ids.reverse()  # 保持与输入顺序一致
+        
+        # 处理库存和日志
+        for i, stock in enumerate(stocks):
+            factory, product_no, size, color, unit, in_quantity, price, total, in_date = stock
+            stock_id = stock_ids[i]
+            
+            # 检查是否存在相同的库存
+            found = None
+            cursor.execute("SELECT id, size, quantity FROM inventory WHERE factory=? AND product_no=? AND color=?", (factory, product_no, color))
+            row = cursor.fetchone()
+            if row:
+                found = row
+            
+            if found:
+                inventory_id, old_size, current_quantity = found
+                new_size = size or ''
+                merged_size = ','.join(sorted(set(s.strip() for s in (old_size + ',' + new_size).split(',') if s.strip())))
+                
+                # 更新库存尺码和数量
+                cursor.execute("UPDATE inventory SET size=? WHERE id=?", (merged_size, inventory_id))
+                cursor.execute("UPDATE inventory SET quantity = quantity + ? WHERE id=?", (in_quantity, inventory_id))
+                
+                # 插入库存日志
+                cursor.execute(
+                    "INSERT INTO stock_log (factory, product_no, size, color, in_quantity, action_type, action_date) VALUES (?, ?, ?, ?, ?, '入库', ?)",
+                    (factory, product_no, merged_size, color, in_quantity, in_date)
+                )
+            else:
+                # 插入新的库存记录
+                cursor.execute(
+                    "INSERT INTO inventory (stock_id, factory, product_no, size, color, unit, quantity) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (stock_id, factory, product_no, size, color, unit, in_quantity)
+                )
+                
+                # 插入库存日志
+                cursor.execute(
+                    "INSERT INTO stock_log (factory, product_no, size, color, in_quantity, action_type, action_date) VALUES (?, ?, ?, ?, ?, '入库', ?)",
+                    (factory, product_no, size, color, in_quantity, in_date)
+                )
+        
+        # 提交事务
+        conn.commit()
+        return stock_count
+    except Exception as e:
+        # 回滚事务
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
+
 def update_outbound_payment_status(outbound_id):
     """同步更新出库单主表的已付/待付金额"""
     conn, cursor = get_db_conn()

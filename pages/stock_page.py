@@ -1,6 +1,6 @@
 #库存页面
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, filedialog
 from util.utils import center_window
 from util import dbutil
 import util.utils as utils
@@ -14,8 +14,7 @@ def StockPage(parent, main_win):
     def open_add_stock_dialog_and_refresh():
         open_add_stock_dialog()
         load_stock_data()
-    btn_add = ttk.Button(stock_toolbar, text="➕", width=3, command=open_add_stock_dialog_and_refresh)
-    btn_add.pack(side=tk.LEFT, padx=3)
+    # 定义add_tooltip函数
     def add_tooltip(widget, text):
         tip = tk.Toplevel(widget)
         tip.withdraw()
@@ -32,7 +31,155 @@ def StockPage(parent, main_win):
             tip.withdraw()
         widget.bind('<Enter>', enter)
         widget.bind('<Leave>', leave)
+    
+    # 左侧按钮
+    def open_add_stock_dialog_and_refresh():
+        open_add_stock_dialog()
+        load_stock_data()
+    btn_add = ttk.Button(stock_toolbar, text="➕", width=3, command=open_add_stock_dialog_and_refresh)
+    btn_add.pack(side=tk.LEFT, padx=3)
     add_tooltip(btn_add, "新增库存")
+    
+    # 批量导入按钮
+    def handle_batch_import():
+        # 创建批量导入对话框
+        import_dialog = tk.Toplevel(main_win)
+        import_dialog.title("批量导入库存")
+        import_dialog.geometry("500x300")
+        center_window(import_dialog)
+        
+        # 设置对话框模态
+        import_dialog.grab_set()
+        
+        # 导入按钮
+        def do_import():
+            file_path = file_path_var.get().strip()
+            if not file_path:
+                tk.messagebox.showerror("错误", "请选择文件")
+                return
+            
+            try:
+                # 检查是否安装了pandas和openpyxl
+                import pandas as pd
+            except ImportError:
+                tk.messagebox.showerror("错误", "请安装pandas和openpyxl库\n命令: pip install pandas openpyxl")
+                return
+            
+            try:
+                # 读取Excel文件
+                df = pd.read_excel(file_path)
+                
+                # 检查必要的列是否存在
+                required_columns = ['厂家', '货号', '数量', '单价', '入库日期']
+                missing_columns = [col for col in required_columns if col not in df.columns]
+                if missing_columns:
+                    tk.messagebox.showerror("错误", f"Excel文件缺少必要的列: {', '.join(missing_columns)}")
+                    return
+                
+                # 准备库存数据列表
+                stocks = []
+                for _, row in df.iterrows():
+                    factory = str(row.get('厂家', '')).strip()
+                    product_no = str(row.get('货号', '')).strip()
+                    size = str(row.get('尺码', '')).strip()
+                    color = str(row.get('颜色', '')).strip()
+                    unit = str(row.get('单位', '个')).strip()
+                    in_quantity = row.get('数量', 0)
+                    price = row.get('单价', 0)
+                    in_date = str(row.get('入库日期', '')).strip()
+                    
+                    # 验证数据
+                    if not all([factory, product_no, in_quantity, price, in_date]):
+                        continue
+                    
+                    try:
+                        in_quantity = int(in_quantity)
+                        price = float(price)
+                        total = in_quantity * price
+                    except ValueError:
+                        continue
+                    
+                    stocks.append((factory, product_no, size, color, unit, in_quantity, price, total, in_date))
+                
+                if not stocks:
+                    tk.messagebox.showerror("错误", "没有有效的库存数据")
+                    return
+                
+                # 批量插入库存
+                inserted_count = dbutil.batch_insert_stocks(stocks)
+                
+                tk.messagebox.showinfo("成功", f"成功导入 {inserted_count} 条库存记录")
+                import_dialog.destroy()
+                load_stock_data()
+            except Exception as e:
+                tk.messagebox.showerror("错误", f"导入失败: {str(e)}")
+        
+        # 下载模板按钮
+        def download_template():
+            try:
+                # 检查是否安装了pandas和openpyxl
+                import pandas as pd
+            except ImportError:
+                tk.messagebox.showerror("错误", "请安装pandas和openpyxl库\n命令: pip install pandas openpyxl")
+                return
+            
+            try:
+                # 创建模板数据
+                template_data = {
+                    '厂家': ['示例厂家'],
+                    '货号': ['示例货号'],
+                    '尺码': ['示例尺码'],
+                    '颜色': ['示例颜色'],
+                    '单位': ['个'],
+                    '数量': [10],
+                    '单价': [99.99],
+                    '入库日期': [utils.get_current_date()]
+                }
+                df = pd.DataFrame(template_data)
+                
+                # 让用户选择保存路径
+                save_path = filedialog.asksaveasfilename(
+                    defaultextension='.xlsx',
+                    filetypes=[("Excel files", "*.xlsx")],
+                    title="保存模板",
+                    initialfile="采购模板"
+                )
+                
+                if save_path:
+                    df.to_excel(save_path, index=False)
+                    tk.messagebox.showinfo("成功", f"模板已保存到: {save_path}")
+            except Exception as e:
+                tk.messagebox.showerror("错误", f"保存模板失败: {str(e)}")
+        
+        btn_template = ttk.Button(import_dialog, text="下载模板", command=download_template)
+        btn_template.pack(pady=10)
+        
+        # 文件选择框架
+        file_frame = ttk.Frame(import_dialog)
+        file_frame.pack(fill=tk.X, padx=20, pady=10)
+        
+        file_path_var = tk.StringVar()
+        ttk.Entry(file_frame, textvariable=file_path_var, width=15).pack(side=tk.LEFT, padx=5)
+        
+        def select_file():
+            file_path = filedialog.askopenfilename(
+                filetypes=[("Excel files", "*.xlsx *.xls")]
+            )
+            if file_path:
+                file_path_var.set(file_path)
+        
+        ttk.Button(file_frame, text="浏览", command=select_file).pack(side=tk.LEFT, padx=5)
+        
+        # 导入按钮
+        btn_import = ttk.Button(import_dialog, text="导入", command=do_import)
+        btn_import.pack(pady=10)
+        
+        # 居中显示
+        center_window(import_dialog)
+    
+# 批量导入按钮移至修改按钮后
+    
+    # 其他按钮和工具栏内容
     # ...existing code...
     # 统一的库存提交方法，提升到StockPage作用域
     def handle_stock_submit(vars, entry_refs, error_label, dialog, is_edit=False, stock_id=None):
@@ -731,6 +878,11 @@ def StockPage(parent, main_win):
     btn_edit = ttk.Button(stock_toolbar, text="✏️", width=3, command=open_edit_stock_dialog)
     btn_edit.pack(side=tk.LEFT, padx=3)
     add_tooltip(btn_edit, "修改库存")
+
+    # 批量导入按钮（图标形式）
+    btn_batch_import = ttk.Button(stock_toolbar, text="📥", width=3, command=handle_batch_import)
+    btn_batch_import.pack(side=tk.LEFT, padx=3)
+    add_tooltip(btn_batch_import, "批量导入库存")
 
     # 新增结账按钮（批量结账）
     btn_settle = ttk.Button(stock_toolbar, text="结账", width=6)
