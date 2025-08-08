@@ -145,7 +145,12 @@ def show_main_page(username, root=None):
     # 不选中任何菜单项，等用户点击后再切换页面
 
     # 提供全局刷新方法供库存页面调用
-    main_win.refresh_logs = lambda: [page_settle_log.refresh(), page_stock_log.refresh()]
+    def refresh_logs():
+        if 'settle_log' in pages:
+            pages['settle_log'].refresh()
+        if 'stock_log' in pages:
+            pages['stock_log'].refresh()
+    main_win.refresh_logs = refresh_logs
 
     def on_nav_select(event):
         sel = nav_tree.selection()
