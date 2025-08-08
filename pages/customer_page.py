@@ -1,7 +1,9 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 from util import dbutil
 from util.utils import center_window
+import pandas as pd
+import os
 
 def CustomerPage(parent, username):
     frame = ttk.Frame(parent)
@@ -15,6 +17,8 @@ def CustomerPage(parent, username):
     btn_edit.pack(side=tk.LEFT, padx=3)
     btn_del = ttk.Button(toolbar, text="🗑️", width=3)
     btn_del.pack(side=tk.LEFT, padx=3)
+    btn_import = ttk.Button(toolbar, text="📤", width=3)
+    btn_import.pack(side=tk.LEFT, padx=3)
     # 右侧密码设置按钮
     right_toolbar = ttk.Frame(toolbar)
     right_toolbar.pack(side=tk.RIGHT, padx=10)
@@ -126,8 +130,117 @@ def CustomerPage(parent, username):
     add_tooltip(btn_add, "新增客户")
     add_tooltip(btn_edit, "修改客户信息")
     add_tooltip(btn_del, "删除客户信息")
+    add_tooltip(btn_import, "批量导入客户")
     add_tooltip(btn_password, "设置/修改密码")
     btn_password.config(command=handle_password_setting)
+
+    # 批量导入客户
+    def batch_import_customers():
+        # 创建批量导入对话框
+        dialog = tk.Toplevel(frame)
+        dialog.title("批量导入客户")
+        dialog.transient(frame)
+        dialog.grab_set()
+        center_window(dialog, 400, 250)
+
+        # 对话框内容
+        ttk.Label(dialog, text="请先下载Excel模板，填写客户信息后再导入", font=('微软雅黑', 10)).pack(pady=15)
+
+        # 模板下载按钮
+        def download_template():
+            try:
+                # 创建Excel模板
+                import pandas as pd
+                from openpyxl import Workbook
+                
+                # 定义模板数据
+                template_data = {
+                    '姓名': ['客户姓名1', '客户姓名2'],
+                    '地址': ['客户地址1', '客户地址2'],
+                    '电话': ['13800138000', '13900139000'],
+                    '物流信息': ['物流信息1', '物流信息2']
+                }
+                df = pd.DataFrame(template_data)
+                
+                # 保存文件
+                file_path = filedialog.asksaveasfilename(
+                    defaultextension=".xlsx",
+                    filetypes=[("Excel files", "*.xlsx")],
+                    title="保存模板文件",
+                    initialfile="客户信息模板"
+                )
+                if file_path:
+                    df.to_excel(file_path, index=False)
+                    messagebox.showinfo("成功", f"模板已成功下载到: {file_path}")
+            except Exception as e:
+                messagebox.showerror("错误", f"下载模板失败: {str(e)}")
+
+        btn_download = ttk.Button(dialog, text="下载Excel模板", command=download_template)
+        btn_download.pack(pady=10)
+
+        # 文件选择按钮
+        def select_file():
+            file_path = filedialog.askopenfilename(
+                title="选择Excel文件",
+                filetypes=[("Excel files", "*.xlsx *.xls")]
+            )
+            if not file_path:
+                return
+
+            try:
+                # 读取Excel文件
+                df = pd.read_excel(file_path)
+                # 检查必要的列是否存在
+                required_columns = ['姓名', '地址', '电话']
+                for col in required_columns:
+                    if col not in df.columns:
+                        messagebox.showerror("错误", f"Excel文件中缺少必要的列: {col}")
+                        return
+
+                # 导入数据
+                success_count = 0
+                for index, row in df.iterrows():
+                    name = str(row['姓名']).strip()
+                    address = str(row['地址']).strip()
+                    phone = str(row['电话']).strip()
+                    # 处理物流信息
+                    logistics_info = ''
+                    if '物流信息' in df.columns:
+                        logistics_info = str(row['物流信息']).strip()
+
+                    if name:
+                        dbutil.insert_customer(name, address, phone, logistics_info)
+                        success_count += 1
+
+                load_data()
+                messagebox.showinfo("成功", f"成功导入 {success_count} 条客户信息！")
+                dialog.destroy()
+            except Exception as e:
+                messagebox.showerror("错误", f"导入失败: {str(e)}")
+
+        btn_select = ttk.Button(dialog, text="选择Excel文件", command=select_file)
+        btn_select.pack(pady=10)
+
+        # 取消按钮
+        btn_cancel = ttk.Button(dialog, text="取消", command=dialog.destroy)
+        btn_cancel.pack(pady=10)
+
+    btn_import.config(command=batch_import_customers)
+
+    # 确保openpyxl已安装
+    try:
+        import openpyxl
+    except ImportError:
+        # 如果未安装，提供安装提示
+        def prompt_install_openpyxl():
+            if messagebox.askyesno("提示", "批量导入功能需要openpyxl库。是否现在安装?"):
+                try:
+                    import subprocess
+                    subprocess.call(["pip", "install", "openpyxl"])
+                    messagebox.showinfo("成功", "openpyxl库安装成功！")
+                except Exception as e:
+                    messagebox.showerror("错误", f"安装失败: {str(e)}")
+        btn_import.config(command=prompt_install_openpyxl)
     # 表格
     columns = ("no", "name", "address", "phone", "logistics_info")
     headers = [
