@@ -29,19 +29,21 @@ class ArrearsSettlePage(ttk.Frame):
         ttk.Entry(filter_frame, textvariable=self.search_customer, width=14).pack(side=tk.LEFT, padx=4)
         # 添加日期区间筛选
         ttk.Label(filter_frame, text="日期:").pack(side=tk.LEFT, padx=(10,0))
-        self.start_date = tk.StringVar()
+        self.start_date = tk.StringVar(value='')
         if has_tkcalendar:
             self.start_date_entry = DateEntry(filter_frame, textvariable=self.start_date, width=10, date_pattern='yyyy-mm-dd')
             self.start_date_entry.pack(side=tk.LEFT, padx=4)
+            self.start_date_entry.delete(0, tk.END)  # 清空默认日期
         else:
             ttk.Entry(filter_frame, textvariable=self.start_date, width=12).pack(side=tk.LEFT, padx=4)
             ttk.Label(filter_frame, text="(格式: yyyy-mm-dd)", font=('Arial', 8)).pack(side=tk.LEFT)
 
         ttk.Label(filter_frame, text="-").pack(side=tk.LEFT)
-        self.end_date = tk.StringVar()
+        self.end_date = tk.StringVar(value='')
         if has_tkcalendar:
             self.end_date_entry = DateEntry(filter_frame, textvariable=self.end_date, width=10, date_pattern='yyyy-mm-dd')
             self.end_date_entry.pack(side=tk.LEFT, padx=4)
+            self.end_date_entry.delete(0, tk.END)  # 清空默认日期
         else:
             ttk.Entry(filter_frame, textvariable=self.end_date, width=12).pack(side=tk.LEFT, padx=4)
             ttk.Label(filter_frame, text="(格式: yyyy-mm-dd)", font=('Arial', 8)).pack(side=tk.LEFT)

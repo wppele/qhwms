@@ -1,9 +1,9 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-from util.dbutil import get_order_details, get_db_conn
+from util.dbutil import get_order_details, get_statements, delete_statement_by_ids
 import os
-from datetime import datetime
 from util.pdfutil import PDFUtil
+from util.utils import center_window
 
 class CustomerStatementPage(ttk.Frame):
     def __init__(self, parent, *args, **kwargs):
@@ -22,22 +22,14 @@ class CustomerStatementPage(ttk.Frame):
         self.customer_entry = ttk.Entry(filter_frame, width=20)
         self.customer_entry.pack(side=tk.LEFT, padx=5)
 
-        # 日期范围筛选
-        ttk.Label(filter_frame, text="日期范围:").pack(side=tk.LEFT, padx=5)
-        self.start_date_entry = ttk.Entry(filter_frame, width=12)
-        self.start_date_entry.pack(side=tk.LEFT, padx=5)
-        self.start_date_entry.insert(0, datetime.now().strftime("%Y-%m-01"))
-
-        ttk.Label(filter_frame, text="至").pack(side=tk.LEFT, padx=5)
-        self.end_date_entry = ttk.Entry(filter_frame, width=12)
-        self.end_date_entry.pack(side=tk.LEFT, padx=5)
-        self.end_date_entry.insert(0, datetime.now().strftime("%Y-%m-%d"))
-
         # 筛选按钮
         ttk.Button(filter_frame, text="筛选", command=self.refresh).pack(side=tk.LEFT, padx=5)
 
         # 刷新按钮
         ttk.Button(filter_frame, text="刷新", command=self.refresh).pack(side=tk.LEFT, padx=5)
+
+        # 删除按钮
+        ttk.Button(filter_frame, text="删除", command=self.delete_statement).pack(side=tk.LEFT, padx=5)
 
         # Treeview表格
         columns = ("id", "statement_no", "customer_name", "outbound_ids", "previous_debt", "current_debt", "total_amount", "bill_period", "issue_date")
@@ -80,6 +72,57 @@ class CustomerStatementPage(ttk.Frame):
         # 绑定双击事件查看详情
         self.tree.bind("<Double-1>", self.on_double_click)
 
+        # 鼠标悬停表格项时显示提示
+        def show_tooltip(event):
+            widget = event.widget
+            row_id = widget.identify_row(event.y)
+            if row_id:
+                if not hasattr(widget, '_tooltip_label'):
+                    widget._tooltip_label = tk.Label(widget, text="双击查看详情", bg="#ffffe0", fg="#333", font=("微软雅黑", 10), relief=tk.SOLID, bd=1)
+                widget._tooltip_label.place_forget()
+                widget._tooltip_label.place(x=event.x, y=event.y+18)
+            else:
+                if hasattr(widget, '_tooltip_label'):
+                    widget._tooltip_label.place_forget()
+        def hide_tooltip(event):
+            widget = event.widget
+            if hasattr(widget, '_tooltip_label'):
+                widget._tooltip_label.place_forget()
+        self.tree.bind('<Motion>', show_tooltip)
+        self.tree.bind('<Leave>', hide_tooltip)
+
+    def show_tooltip(self, event):
+        # 获取鼠标位置
+        x, y = event.x_root, event.y_root
+        # 显示提示框，位置稍微偏移鼠标
+        self.tooltip.place(x=x+10, y=y+10)
+
+    def delete_statement(self):
+        # 获取选中的项
+        selected_items = self.tree.selection()
+        if not selected_items:
+            messagebox.showinfo("提示", "请选择要删除的对账单！")
+            return
+
+        # 确认删除
+        if not messagebox.askyesno("确认", "确定要删除选中的对账单吗？"):
+            return
+
+        # 获取选中项的ID
+        statement_ids = []
+        for item in selected_items:
+            values = self.tree.item(item, "values")
+            statement_ids.append(values[0])  # 假设第一列是ID
+
+        # 删除数据库中的记录
+        try:
+            deleted_count = delete_statement_by_ids(statement_ids)
+            messagebox.showinfo("成功", f"已成功删除 {deleted_count} 份对账单！")
+            # 刷新表格
+            self.refresh()
+        except Exception as e:
+            messagebox.showerror("错误", f"删除对账单失败: {str(e)}")
+
     def refresh(self):
         # 清空表格
         for item in self.tree.get_children():
@@ -87,51 +130,16 @@ class CustomerStatementPage(ttk.Frame):
 
         # 获取筛选条件
         customer_name = self.customer_entry.get().strip()
-        start_date = self.start_date_entry.get().strip()
-        end_date = self.end_date_entry.get().strip()
-
-        # 验证日期格式
-        try:
-            if start_date:
-                datetime.strptime(start_date, "%Y-%m-%d")
-            if end_date:
-                datetime.strptime(end_date, "%Y-%m-%d")
-        except ValueError:
-            messagebox.showerror("错误", "日期格式不正确，请使用YYYY-MM-DD格式")
-            return
-
-        # 构建SQL查询
-        conn, cursor = get_db_conn()
-
-        query = "SELECT * FROM statement WHERE 1=1"
-        params = []
-
-        if customer_name:
-            query += " AND customer_name LIKE ?"
-            params.append(f"%{customer_name}%")
-
-        if start_date:
-            query += " AND issue_date >= ?"
-            params.append(start_date)
-
-        if end_date:
-            query += " AND issue_date <= ?"
-            params.append(end_date)
-
-        query += " ORDER BY issue_date DESC, id DESC"
 
         try:
-            cursor.execute(query, params)
-            rows = cursor.fetchall()
+            # 使用dbutil中的函数获取对账单数据
+            rows = get_statements(customer_name)
 
             # 插入数据到表格
             for row in rows:
                 self.tree.insert('', 'end', values=row)
         except Exception as e:
             messagebox.showerror("错误", f"查询对账单数据失败: {str(e)}")
-        finally:
-            cursor.close()
-            conn.close()
 
     def on_double_click(self, event):
         # 获取选中的项
@@ -145,23 +153,18 @@ class CustomerStatementPage(ttk.Frame):
             return
 
         # 获取订单详情
-        start_date = self.start_date_entry.get().strip()
-        end_date = self.end_date_entry.get().strip()
-        order_details = self.get_order_details(values[3], start_date, end_date)
+        order_details = self.get_order_details(values[3])
 
         # 创建详情对话框
         detail_window = tk.Toplevel(self.parent)
         detail_window.title("千辉鞋业-客户对账单")
-        detail_window.geometry("900x600")
         detail_window.resizable(True, True)
 
-        # 居中显示
-        detail_window.update_idletasks()
-        width = detail_window.winfo_width()
-        height = detail_window.winfo_height()
-        x = (detail_window.winfo_screenwidth() // 2) - (width // 2)
-        y = (detail_window.winfo_screenheight() // 2) - (height // 2)
-        detail_window.geometry('{}x{}+{}+{}'.format(width, height, x, y))
+        # 设置窗口置顶
+        detail_window.attributes('-topmost', True)
+
+        # 使用utils中的方法居中显示
+        center_window(detail_window, 900, 600)
 
         # 创建标签显示详情
         frame = ttk.Frame(detail_window, padding=20)
@@ -263,16 +266,14 @@ class CustomerStatementPage(ttk.Frame):
         ttk.Label(total_frame, text=f"应付总金额: {total_amount:.2f}", foreground="red", font=('微软雅黑', 12, 'bold'), anchor=tk.E).grid(row=0, column=0, padx=10, pady=2, sticky='e')
         ttk.Label(total_frame, text=f"大写: {upper_total}", foreground="red", font=('微软雅黑', 10, 'bold'), anchor=tk.E).grid(row=1, column=0, padx=10, pady=2, sticky='e')
 
-    def get_order_details(self, outbound_ids, start_date=None, end_date=None):
+    def get_order_details(self, outbound_ids):
         """
-        根据订单ID获取订单详情，并支持日期范围筛选
+        根据订单ID获取订单详情
         :param outbound_ids: 订单ID字符串，多个ID用逗号分隔
-        :param start_date: 开始日期 (YYYY-MM-DD)
-        :param end_date: 结束日期 (YYYY-MM-DD)
         :return: 订单详情列表
         """
         ids = outbound_ids.split(',') if outbound_ids else []
-        return get_order_details(ids, start_date, end_date)
+        return get_order_details(ids)
 
     def convert_to_upper(self, amount):
         """

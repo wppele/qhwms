@@ -431,12 +431,10 @@ def delete_debt_record_by_outboundid(outbound_id):
     cursor.execute("DELETE FROM debt_record WHERE outbound_id=?", (outbound_id,))
     commit_and_close(conn)
 
-def get_order_details(outbound_ids, start_date=None, end_date=None):
+def get_order_details(outbound_ids):
     """
-    根据订单ID获取订单详情，并支持日期范围筛选
+    根据订单ID获取订单详情
     :param outbound_ids: 订单ID列表
-    :param start_date: 开始日期 (YYYY-MM-DD)
-    :param end_date: 结束日期 (YYYY-MM-DD)
     :return: 订单详情列表
     """
     order_details = []
@@ -454,14 +452,6 @@ def get_order_details(outbound_ids, start_date=None, end_date=None):
             # 截取出库日期的日期部分
             if ' ' in outbound_date:
                 outbound_date = outbound_date.split(' ')[0]
-
-            # 日期范围筛选
-            if start_date or end_date:
-                order_date = outbound_date.split(' ')[0] if ' ' in outbound_date else outbound_date
-                if start_date and order_date < start_date:
-                    continue
-                if end_date and order_date > end_date:
-                    continue
 
             # 查询订单项
             cursor.execute("SELECT product_id, quantity, price, amount FROM outbound_item WHERE outbound_id = ?", (order_id.strip(),))
@@ -788,6 +778,58 @@ def delete_debt_record_by_outboundid(outbound_id):
     cursor.execute('DELETE FROM debt_record WHERE outbound_id=?', (outbound_id,))
     commit_and_close(conn)
     return cursor.rowcount > 0
+
+# ========== statement ==========
+# 对账单相关操作
+
+def get_statements(customer_name=None):
+    """
+    获取对账单数据
+    :param customer_name: 客户名称筛选条件（可选）
+    :return: 对账单记录列表
+    """
+    conn, cursor = get_db_conn()
+    query = "SELECT * FROM statement WHERE 1=1"
+    params = []
+
+    if customer_name:
+        query += " AND customer_name LIKE ?"
+        params.append(f"%{customer_name}%")
+
+    query += " ORDER BY issue_date DESC, id DESC"
+
+    try:
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        return rows
+    except Exception as e:
+        print(f"查询对账单数据失败: {str(e)}")
+        return []
+    finally:
+        cursor.close()
+        conn.close()
+
+def delete_statement_by_ids(statement_ids):
+    """
+    根据ID列表删除对账单
+    :param statement_ids: 对账单ID列表
+    :return: 删除成功的数量
+    """
+    if not statement_ids:
+        return 0
+
+    conn, cursor = get_db_conn()
+    try:
+        cursor.executemany("DELETE FROM statement WHERE id = ?", [(id,) for id in statement_ids])
+        conn.commit()
+        return cursor.rowcount
+    except Exception as e:
+        conn.rollback()
+        print(f"删除对账单失败: {str(e)}")
+        return 0
+    finally:
+        cursor.close()
+        conn.close()
 
 
 if __name__ == "__main__":
