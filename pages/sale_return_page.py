@@ -171,8 +171,9 @@ class SaleReturnPage(ttk.Frame):
                     total_paid = float(order_row[5]) if order_row[5] else 0.0
                     total_debt = float(order_row[6]) if order_row[6] else 0.0
                     
-                    new_total_paid = total_paid + deduct_amount
-                    new_total_debt = max(total - new_total_paid, 0)
+                    # 余款抵扣不增加已付金额，只减少余款
+                    new_total_paid = total_paid
+                    new_total_debt = max(total_debt - deduct_amount, 0)
                     
                     if new_total_debt <= 0.01:
                         pay_status = 2

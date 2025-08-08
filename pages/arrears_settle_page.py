@@ -47,6 +47,7 @@ class ArrearsSettlePage(ttk.Frame):
             ttk.Label(filter_frame, text="(格式: yyyy-mm-dd)", font=('Arial', 8)).pack(side=tk.LEFT)
         ttk.Button(filter_frame, text="筛选", command=self.refresh, width=8).pack(side=tk.LEFT, padx=8)
         ttk.Button(filter_frame, text="生成对账单", command=self.generate_statement, width=10).pack(side=tk.LEFT, padx=8)
+        ttk.Button(filter_frame, text="批量结算", command=self.batch_settle, width=10).pack(side=tk.LEFT, padx=8)
 
         columns = ("serial", "order_no", "customer_name", "total_amount", "total_paid", "remaining_debt", "outbound_date")
         self.tree = ttk.Treeview(self, columns=columns, show="headings")
@@ -261,6 +262,157 @@ class ArrearsSettlePage(ttk.Frame):
         cursor.execute("DELETE FROM debt_record WHERE debt_id=?", (debt_id,))
         conn.commit()
         conn.close()
+
+    def batch_settle(self):
+        """批量结算功能"""
+        selected_items = self.tree.selection()
+        if not selected_items:
+            messagebox.showinfo("提示", "请选择需要结账的条目！")
+            return
+
+        # 检查是否是同一个客户
+        customer_names = set()
+        total_debt = 0.0
+        selected_data = []
+
+        for item in selected_items:
+            values = self.tree.item(item, "values")
+            customer_name = values[2]
+            customer_names.add(customer_name)
+            remaining_debt = float(values[5])
+            total_debt += remaining_debt
+
+            # 获取tag信息
+            tag = self.tree.item(item).get('tags', ('',))[0]
+            try:
+                debt_id, outbound_id, item_ids = tag.split('|', 2)
+                selected_data.append({
+                    'debt_id': debt_id,
+                    'outbound_id': outbound_id,
+                    'item_ids': item_ids,
+                    'remaining_debt': remaining_debt,
+                    'order_no': values[1],
+                    'total_amount': float(values[3]),
+                    'total_paid': float(values[4])
+                })
+            except Exception:
+                messagebox.showerror("错误", "无法获取欠账记录ID")
+                return
+
+        if len(customer_names) > 1:
+            messagebox.showinfo("提示", "不能对多个客户同时结账！")
+            return
+
+        customer_name = list(customer_names)[0]
+
+        # 弹出对话框显示总欠款金额，让用户输入还款金额和支付方式
+        pay_amount, pay_method = self.ask_batch_amount_and_method(total_debt, customer_name)
+        if pay_amount is None or not pay_method:
+            return
+
+        # 按欠款金额从小到大排序，优先结清小额欠款
+        selected_data.sort(key=lambda x: x['remaining_debt'])
+
+        remain = pay_amount
+        paid_records = []
+        from datetime import datetime
+        pay_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        for data in selected_data:
+            if remain <= 0:
+                break
+
+            debt_id = data['debt_id']
+            outbound_id = data['outbound_id']
+            item_ids = data['item_ids']
+            remaining_debt = data['remaining_debt']
+
+            pay_this = min(remain, remaining_debt)
+            paid_records.append({
+                'outbound_id': outbound_id,
+                'item_ids': item_ids,
+                'pay_amount': pay_this,
+                'order_no': data['order_no']
+            })
+
+            # 写入payment_record，支付方式格式：支付方式-批量支付金额
+            payment_method = f"{pay_method}-批量支付金额:{pay_amount:.2f}"
+
+            dbutil.insert_payment_record(outbound_id, item_ids, pay_this, pay_time, payment_method)
+
+            # 更新debt_record
+            new_debt = remaining_debt - pay_this
+            if new_debt <= 0.01:
+                self.delete_debt_record(debt_id)
+                if not self.has_debt_for_outbound(outbound_id):
+                    self.settle_outbound_order_and_items(outbound_id)
+            else:
+                self.update_debt_record(debt_id, new_debt)
+
+            # 同步更新出库单主表和明细表的已付/待付金额
+            self.update_outbound_payment_status(outbound_id)
+
+            remain -= pay_this
+
+        # 显示结算结果
+        if remain <= 0.01:
+            messagebox.showinfo("提示", f"结算成功，全部欠款已结清！总支付金额：{pay_amount:.2f}")
+        else:
+            messagebox.showinfo("提示", f"结算成功，部分欠款已结清！已支付：{pay_amount-remain:.2f}，剩余：{remain:.2f}")
+
+        self.refresh()
+
+    def ask_batch_amount_and_method(self, total_debt, customer_name):
+        """批量结算时询问还款金额和支付方式"""
+        dialog = tk.Toplevel(self)
+        dialog.title("批量结算")
+        dialog.grab_set()
+        dialog.update_idletasks()
+        w, h = 360, 180
+        sw = dialog.winfo_screenwidth()
+        sh = dialog.winfo_screenheight()
+        x = (sw - w) // 2
+        y = (sh - h) // 2
+        dialog.geometry(f"{w}x{h}+{x}+{y}")
+
+        tk.Label(dialog, text=f"客户：{customer_name}", font=("微软雅黑", 11)).pack(pady=(10, 2))
+        tk.Label(dialog, text=f"总欠款金额：{total_debt:.2f}", font=("微软雅黑", 11)).pack(pady=(2, 8))
+
+        frm = ttk.Frame(dialog)
+        frm.pack(pady=6)
+
+        tk.Label(frm, text="还款金额:", font=("微软雅黑", 11)).pack(side=tk.LEFT)
+        amount_var = tk.StringVar(value=f"{total_debt:.2f}")
+        amount_entry = ttk.Entry(frm, textvariable=amount_var, width=10)
+        amount_entry.pack(side=tk.LEFT, padx=6)
+
+        tk.Label(frm, text="支付方式:", font=("微软雅黑", 11)).pack(side=tk.LEFT, padx=(10,0))
+        method_var = tk.StringVar(value="现金")
+        method_combo = ttk.Combobox(frm, textvariable=method_var, values=["现金", "微信", "支付宝", "银联", "云闪付", "其他"], width=8, state="readonly")
+        method_combo.pack(side=tk.LEFT, padx=4)
+
+        result = {'amount': None, 'method': None}
+
+        def on_ok():
+            try:
+                val = float(amount_var.get())
+                if val < 0.01 or val > total_debt:
+                    raise ValueError
+            except Exception:
+                messagebox.showwarning("提示", f"请输入0.01~{total_debt:.2f}之间的金额！", parent=dialog)
+                return
+            result['amount'] = float(amount_var.get())
+            result['method'] = method_var.get()
+            dialog.destroy()
+
+        btn_frm = ttk.Frame(dialog)
+        btn_frm.pack(pady=12)
+        ttk.Button(btn_frm, text="确定", command=on_ok).pack(side=tk.LEFT, padx=10)
+        ttk.Button(btn_frm, text="取消", command=dialog.destroy).pack(side=tk.LEFT, padx=10)
+
+        amount_entry.focus_set()
+        dialog.wait_window()
+        return result['amount'], result['method']
 
     def generate_statement(self):
         """生成对账单"""
