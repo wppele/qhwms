@@ -173,7 +173,7 @@ class PDFUtil:
 
         # 汇总区
         total_paid = order.get('total_paid', 0.0)
-        total_debt = order.get('remaining_debt', 0.0)
+        total_debt = order.get('total_debt', 0.0)
         # 根据视图类型设置汇总信息
         if show_kufang:
             summary_text = f"总计数量：{total_quantity}"
