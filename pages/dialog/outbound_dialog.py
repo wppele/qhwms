@@ -3,6 +3,9 @@ from tkinter import ttk, messagebox
 from util import dbutil
 import datetime
 
+# 存储上次选择的商品
+last_selected_product = ''
+
 def OutboundDialog(parent, cart_list, customer_name=None):
     dialog = tk.Toplevel(parent)
     dialog.title("出库单")
@@ -167,10 +170,15 @@ def OutboundDialog(parent, cart_list, customer_name=None):
         def edit_product_no():
             x, y, width, height = tree.bbox(item_id, '#1')
             entry = ttk.Combobox(tree, values=display_items, width=18)
+            # 设置默认值为上次选择的商品
+            if last_selected_product and last_selected_product in display_items:
+                entry.set(last_selected_product)
             entry.place(x=x, y=y, width=width, height=height)
             entry.focus_set()
             
             def on_select(e=None):
+                # 声明为全局变量
+                global last_selected_product
                 val = entry.get()
                 inv = next((i for i in all_inv if f"{i[3]}-{i[5]}-{i[4]}" == val), None)
                 product_no = inv[3] if inv else ''
@@ -185,6 +193,8 @@ def OutboundDialog(parent, cart_list, customer_name=None):
                 vals[3] = size         # 尺码
                 vals[7] = pid          # product_id
                 tree.item(item_id, values=vals)
+                # 更新上次选择的商品
+                last_selected_product = val
                 entry.destroy()
             
             def on_keyrelease(event):
@@ -297,10 +307,16 @@ def OutboundDialog(parent, cart_list, customer_name=None):
             combo_value = f"{value}-{color}-{size}" if value else ""
             entry = ttk.Combobox(tree, values=display_items, width=18)
             entry.place(x=x, y=y, width=width, height=height)
-            entry.set(combo_value)
+            # 优先使用上次选择的商品，如果没有则使用当前值
+            if last_selected_product and last_selected_product in display_items:
+                entry.set(last_selected_product)
+            else:
+                entry.set(combo_value)
             entry.focus_set()
             
             def on_select(e=None):
+                # 声明为全局变量
+                global last_selected_product
                 val = entry.get()
                 inv = next((i for i in all_inv if f"{i[3]}-{i[5]}-{i[4]}" == val), None)
                 product_no = inv[3] if inv else ''
@@ -315,6 +331,8 @@ def OutboundDialog(parent, cart_list, customer_name=None):
                 vals[3] = size
                 vals[7] = pid
                 tree.item(item, values=vals)
+                # 更新上次选择的商品
+                last_selected_product = val
                 entry.destroy()
             
             def on_keyrelease(event):
