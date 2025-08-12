@@ -202,7 +202,7 @@ class PDFUtil:
             ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
             ("FONTNAME", (0,0), (-1,-1), font_name),
             ("FONTSIZE", (0,0), (-1,-1), 11),
-            ("TOPPADDING", (0,0), (-1,-1), 10),
+            ("TOPPADDING", (0,0), (-1,-1), 3),
         ]))
         elements.append(remark_table)
 
