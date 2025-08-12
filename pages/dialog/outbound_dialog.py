@@ -138,8 +138,18 @@ def OutboundDialog(parent, cart_list, customer_name=None):
         ("price", "单价"),           # 5
         ("amount", "金额"),          # 6
     ]
-    tree = ttk.Treeview(dialog, columns=columns, show="headings", height=13)
-    tree.pack(fill=tk.X, padx=30, pady=12)
+    # 创建一个框架来放置 Treeview 和滚动条
+    tree_frame = ttk.Frame(dialog)
+    tree_frame.pack(fill=tk.BOTH, expand=True, padx=30, pady=12)
+
+    # 创建垂直滚动条
+    scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL)
+    scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+    # 创建 Treeview 并关联滚动条
+    tree = ttk.Treeview(tree_frame, columns=columns, show="headings", height=13, yscrollcommand=scrollbar.set)
+    scrollbar.config(command=tree.yview)
+    tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
     
     for col, text in headers:
         tree.heading(col, text=text)
@@ -162,56 +172,43 @@ def OutboundDialog(parent, cart_list, customer_name=None):
 
     # 添加商品和删除商品按钮
     def add_item_row():
-        all_inv = dbutil.get_all_inventory()
-        display_items = [f"{inv[3]}-{inv[5]}-{inv[4]}" for inv in all_inv]
-        values = ("", "", "", "", 0, 0.0, "0.00", "")
-        item_id = tree.insert("", tk.END, values=values)
+        # 打开商品搜索对话框
+        from pages.dialog.search_dialog import ProductSearchDialog
+        # 使用nonlocal关键字引用外部函数的dialog变量
+        nonlocal dialog
         
-        def edit_product_no():
-            x, y, width, height = tree.bbox(item_id, '#1')
-            entry = ttk.Combobox(tree, values=display_items, width=18)
-            # 设置默认值为上次选择的商品
-            if last_selected_product and last_selected_product in display_items:
-                entry.set(last_selected_product)
-            entry.place(x=x, y=y, width=width, height=height)
-            entry.focus_set()
-            
-            def on_select(e=None):
-                # 声明为全局变量
-                global last_selected_product
-                val = entry.get()
-                inv = next((i for i in all_inv if f"{i[3]}-{i[5]}-{i[4]}" == val), None)
-                product_no = inv[3] if inv else ''
-                color = inv[5] if inv else ''
-                unit = inv[6] if inv else ''
-                size = inv[4] if inv else ''
-                pid = inv[0] if inv else ''
-                vals = list(tree.item(item_id)['values'])
-                vals[0] = product_no   # 货号
-                vals[1] = color        # 颜色
-                vals[2] = unit         # 单位
-                vals[3] = size         # 尺码
-                vals[7] = pid          # product_id
-                tree.item(item_id, values=vals)
+        # 检查是否已有搜索对话框实例，如果有则显示它
+        if hasattr(dialog, 'search_dialog') and dialog.search_dialog.winfo_exists():
+            dialog.search_dialog.deiconify()
+            return
+        
+        def on_product_selected(event=None):
+            product = search_dialog.get_selected_product()
+            if product:
+                # 插入新行
+                values = (
+                    product['product_no'],
+                    product['color'],
+                    product['unit'],
+                    product['size'],
+                    0,  # 数量
+                    0.0,  # 单价
+                    "0.00",  # 金额
+                    product['id']  # product_id
+                )
+                item_id = tree.insert("", tk.END, values=values)
+                
                 # 更新上次选择的商品
-                last_selected_product = val
-                entry.destroy()
+                global last_selected_product
+                last_selected_product = f"{product['product_no']}-{product['unit']}-{product['color']}"
             
-            def on_keyrelease(event):
-                value = entry.get().strip().lower()
-                if value == '':
-                    entry['values'] = display_items
-                elif len(value) >= 3:
-                    filtered = [item for item in display_items if value in item.lower()]
-                    entry['values'] = filtered if filtered else display_items
-                    if filtered:
-                        entry.event_generate('<Down>')
+        search_dialog = ProductSearchDialog(dialog)
+        # 保存对话框实例
+        dialog.search_dialog = search_dialog
+        search_dialog.bind('<<ProductSelected>>', on_product_selected)
+        # 显示对话框
+        search_dialog.deiconify()
             
-            entry.bind('<Return>', on_select)
-            entry.bind('<<ComboboxSelected>>', on_select)
-            entry.bind('<KeyRelease>', on_keyrelease)
-        
-        edit_product_no()
 
     def delete_selected_row():
         sel = tree.selection()
@@ -298,56 +295,38 @@ def OutboundDialog(parent, cart_list, customer_name=None):
             return
         
         if col == '#1':
-            all_inv = dbutil.get_all_inventory()
-            display_items = [f"{inv[3]}-{inv[5]}-{inv[4]}" for inv in all_inv]
-            x, y, width, height = tree.bbox(item, col)
-            value = tree.set(item, 'product_no')
-            color = tree.set(item, 'color')
-            size = tree.set(item, 'size')
-            combo_value = f"{value}-{color}-{size}" if value else ""
-            entry = ttk.Combobox(tree, values=display_items, width=18)
-            entry.place(x=x, y=y, width=width, height=height)
-            # 优先使用上次选择的商品，如果没有则使用当前值
-            if last_selected_product and last_selected_product in display_items:
-                entry.set(last_selected_product)
-            else:
-                entry.set(combo_value)
-            entry.focus_set()
+            # 打开商品搜索对话框
+            from pages.dialog.search_dialog import ProductSearchDialog
+            # 使用nonlocal关键字引用外部函数的dialog变量
+            nonlocal dialog
             
-            def on_select(e=None):
-                # 声明为全局变量
-                global last_selected_product
-                val = entry.get()
-                inv = next((i for i in all_inv if f"{i[3]}-{i[5]}-{i[4]}" == val), None)
-                product_no = inv[3] if inv else ''
-                color = inv[5] if inv else ''
-                unit = inv[6] if inv else ''
-                size = inv[4] if inv else ''
-                pid = inv[0] if inv else ''
-                vals = list(tree.item(item)['values'])
-                vals[0] = product_no
-                vals[1] = color
-                vals[2] = unit
-                vals[3] = size
-                vals[7] = pid
-                tree.item(item, values=vals)
-                # 更新上次选择的商品
-                last_selected_product = val
-                entry.destroy()
+            # 检查是否已有搜索对话框实例，如果有则显示它
+            if hasattr(dialog, 'search_dialog') and dialog.search_dialog.winfo_exists():
+                dialog.search_dialog.deiconify()
+                return
             
-            def on_keyrelease(event):
-                value = entry.get().strip().lower()
-                if value == '':
-                    entry['values'] = display_items
-                elif len(value) >= 2:
-                    filtered = [item for item in display_items if value in item.lower()]
-                    entry['values'] = filtered if filtered else display_items
-                    if filtered:
-                        entry.event_generate('<Down>')
+            def on_product_selected(event=None):
+                product = search_dialog.get_selected_product()
+                if product:
+                    # 更新商品信息
+                    vals = list(tree.item(item)['values'])
+                    vals[0] = product['product_no']  # 货号
+                    vals[1] = product['color']       # 颜色
+                    vals[2] = product['unit']        # 单位
+                    vals[3] = product['size']        # 尺码
+                    vals[7] = product['id']          # product_id
+                    tree.item(item, values=vals)
+                    
+                    # 更新上次选择的商品
+                    global last_selected_product
+                    last_selected_product = f"{product['product_no']}-{product['unit']}-{product['color']}"
             
-            entry.bind('<Return>', on_select)
-            entry.bind('<<ComboboxSelected>>', on_select)
-            entry.bind('<KeyRelease>', on_keyrelease)
+            search_dialog = ProductSearchDialog(dialog)
+            # 保存对话框实例
+            dialog.search_dialog = search_dialog
+            search_dialog.bind('<<ProductSelected>>', on_product_selected)
+            # 显示对话框
+            search_dialog.deiconify()
         else:
             # 只允许编辑数量、单价、金额三列
             editable_cols = ['#5', '#6', '#7']  # 数量、单价、金额
