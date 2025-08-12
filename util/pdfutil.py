@@ -134,11 +134,11 @@ class PDFUtil:
 
         # 根据视图类型设置表头和列宽
         if show_kufang:
-            product_header = ["序号", "货号", "颜色", "单位", "尺码", "数量", "备注"]
-            col_widths = [12*mm, 30*mm, 18*mm, 13*mm, 18*mm, 22*mm, 15*mm]
+            product_header = ["序号", "货号", "颜色", "单位", "尺码", "数量"]
+            col_widths = [12*mm, 30*mm, 18*mm, 13*mm, 18*mm, 22*mm]
         else:
-            product_header = ["序号", "货号", "颜色", "单位", "尺码", "数量", "单价", "金额", "备注"]
-            col_widths = [12*mm, 30*mm, 18*mm, 13*mm, 18*mm, 22*mm, 15*mm, 18*mm, 15*mm]
+            product_header = ["序号", "货号", "颜色", "单位", "尺码", "数量", "单价", "金额"]
+            col_widths = [12*mm, 30*mm, 18*mm, 13*mm, 18*mm, 22*mm, 15*mm, 18*mm]
 
         product_data = [product_header]
         total_quantity = 0
@@ -156,9 +156,9 @@ class PDFUtil:
             total_amount += amount
             
             if show_kufang:
-                product_data.append([idx, product_no, color, unit, size, quantity, remark])
+                product_data.append([idx, product_no, color, unit, size, quantity])
             else:
-                product_data.append([idx, product_no, color, unit, size, quantity, f"{price:.2f}", f"{amount:.2f}", remark])
+                product_data.append([idx, product_no, color, unit, size, quantity, f"{price:.2f}", f"{amount:.2f}"])
 
         product_table = Table(product_data, colWidths=col_widths, hAlign='LEFT')
         product_table.setStyle(TableStyle([
@@ -192,6 +192,19 @@ class PDFUtil:
             ("FONTSIZE", (0,0), (-1,-1), 11),
         ]))
         elements.append(total_info_table)
+
+        # 总备注区域
+        remark = order.get('remark', '无')
+        remark_text = f"备注信息：{remark}"
+        remark_table = Table([[remark_text]], colWidths=[180*mm], hAlign='LEFT')
+        remark_table.setStyle(TableStyle([
+            ("ALIGN", (0,0), (-1,-1), "LEFT"),
+            ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+            ("FONTNAME", (0,0), (-1,-1), font_name),
+            ("FONTSIZE", (0,0), (-1,-1), 11),
+            ("TOPPADDING", (0,0), (-1,-1), 10),
+        ]))
+        elements.append(remark_table)
 
         # 签字区
         sign_data = [["制单人：", "出库：", "送货人：", "收货人："]]

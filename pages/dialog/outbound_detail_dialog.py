@@ -2,8 +2,6 @@ import tkinter as tk
 from tkinter import ttk
 from util import dbutil
 from util.pdfutil import PDFUtil
-import tkinter.simpledialog
-import os
 
 def show_outbound_detail(parent, order_no):
     # 获取出库单主表信息
@@ -76,6 +74,13 @@ def show_outbound_detail(parent, order_no):
     bottom.pack(fill=tk.X, side=tk.BOTTOM, anchor=tk.SE, padx=24, pady=12)
     is_kufang = tk.BooleanVar(value=True)
     
+    # 备注信息显示
+    remark_frame = ttk.Frame(bottom)
+    remark_frame.pack(fill=tk.X, padx=0, pady=(0, 10))
+    ttk.Label(remark_frame, text="备注信息:", font=('微软雅黑', 11)).pack(side=tk.LEFT)
+    remark = order[8] if len(order) > 8 else "无"
+    ttk.Label(remark_frame, text=remark, font=('微软雅黑', 11)).pack(side=tk.LEFT, padx=5)
+
     # 总计信息显示框架
     total_frame = ttk.Frame(bottom)
     total_frame.pack(side=tk.LEFT, padx=(0, 20))
@@ -132,7 +137,8 @@ def show_outbound_detail(parent, order_no):
             'total_quantity': int(sum(item[3] for item in items)),
             'total_amount': total_amount,
             'total_paid': total_paid,
-            'total_debt': total_debt
+            'total_debt': total_debt,
+            'remark': order[8] if len(order) > 8 else "无"
         }
 
         # 准备产品明细数据
@@ -147,6 +153,7 @@ def show_outbound_detail(parent, order_no):
             price = item[4] if len(item) > 4 else 0.0
             amount = item[5] if len(item) > 5 else 0.0
             # 备注字段，数据库如有可填，否则留空
+            # 去除每一项备注
             remark = ""
             product_data.append({
                 'idx': idx,
@@ -172,6 +179,13 @@ def show_outbound_detail(parent, order_no):
         tree['displaycolumns'] = show_cols
         for w in bottom.pack_slaves():
             w.pack_forget()
+        # 重新添加备注信息显示
+        remark_frame = ttk.Frame(bottom)
+        remark_frame.pack(fill=tk.X, padx=0, pady=(0, 10))
+        ttk.Label(remark_frame, text="备注信息:", font=('微软雅黑', 11)).pack(side=tk.LEFT)
+        remark = order[8] if len(order) > 8 else "无"
+        ttk.Label(remark_frame, text=remark, font=('微软雅黑', 11)).pack(side=tk.LEFT, padx=5)
+
         chk.pack(side=tk.RIGHT, padx=(0, 12))
         btn_export.pack(side=tk.RIGHT, padx=(0, 12))
         ttk.Label(bottom, text=f"总计数量: {int(sum(item[3] for item in items))}", font=("微软雅黑", 11, "bold")).pack(side=tk.RIGHT, padx=(0, 18))

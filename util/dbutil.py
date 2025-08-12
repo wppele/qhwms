@@ -62,13 +62,13 @@ def delete_draft_order(draft_id):
 
 # ========== outbound_order & outbound_item ==========
 # 建表见 init_db()
-def insert_outbound_order(order_no, customer_id, total_amount, pay_status, total_paid, total_debt, create_time):
+def insert_outbound_order(order_no, customer_id, total_amount, pay_status, total_paid, total_debt, create_time, remark):
     """插入一条出库单主表记录，返回主键outbound_id"""
     conn, cursor = get_db_conn()
     cursor.execute('''
-        INSERT INTO outbound_order (order_no, customer_id, total_amount, pay_status, total_paid, total_debt, create_time)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    ''', (order_no, customer_id, total_amount, pay_status, total_paid, total_debt, create_time))
+        INSERT INTO outbound_order (order_no, customer_id, total_amount, pay_status, total_paid, total_debt, create_time, remark)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (order_no, customer_id, total_amount, pay_status, total_paid, total_debt, create_time, remark))
     outbound_id = cursor.lastrowid
     commit_and_close(conn)
     return outbound_id
@@ -85,7 +85,7 @@ def insert_outbound_item(outbound_id, product_id, quantity, price, amount):
 def get_all_outbound_orders():
     """获取所有出库单主表记录（outbound_order）"""
     conn, cursor = get_db_conn()
-    cursor.execute("SELECT outbound_id, order_no, customer_id, total_amount, pay_status, total_paid, total_debt, create_time FROM outbound_order ORDER BY outbound_id DESC")
+    cursor.execute("SELECT outbound_id, order_no, customer_id, total_amount, pay_status, total_paid, total_debt, create_time, remark FROM outbound_order ORDER BY outbound_id DESC")
     rows = cursor.fetchall()
     conn.close()
     return rows
@@ -734,7 +734,8 @@ def init_db():
             pay_status INTEGER NOT NULL DEFAULT 0, -- 0未支付/1部分/2全额
             total_paid REAL NOT NULL DEFAULT 0,
             total_debt REAL NOT NULL DEFAULT 0,
-            create_time TEXT
+            create_time TEXT,
+            remark TEXT
         )
     ''')
     # 新出库单明细表（OutboundItem）增加price字段

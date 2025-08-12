@@ -9,7 +9,7 @@ last_selected_product = ''
 def OutboundDialog(parent, cart_list, customer_name=None):
     dialog = tk.Toplevel(parent)
     dialog.title("出库单")
-    w, h = 950, 560
+    w, h = 950, 600
     sw = dialog.winfo_screenwidth()
     sh = dialog.winfo_screenheight()
     x = (sw - w) // 2
@@ -388,6 +388,14 @@ def OutboundDialog(parent, cart_list, customer_name=None):
     # 初始合计
     calc_total()
     
+    # 备注区域
+    remark_frame = ttk.Frame(dialog)
+    remark_frame.pack(fill=tk.X, padx=30, pady=8)
+    ttk.Label(remark_frame, text="订单备注:", font=('微软雅黑', 11)).pack(side=tk.LEFT)
+    remark_var = tk.StringVar(value="")
+    remark_entry = ttk.Entry(remark_frame, textvariable=remark_var, width=50)
+    remark_entry.pack(side=tk.LEFT, padx=6, fill=tk.X, expand=True)
+
     # 底部按钮
     btn_frame = ttk.Frame(dialog)
     btn_frame.pack(pady=18)
@@ -447,8 +455,10 @@ def OutboundDialog(parent, cart_list, customer_name=None):
             # 确定支付状态
             pay_status = 0 if float(total_paid_var.get()) == 0 else 1 if float(total_paid_var.get()) < total else 2
             
+            # 获取备注内容
+            remark = remark_var.get()
             outbound_id = dbutil.insert_outbound_order(
-                order_no_var.get(), customer_id, total, pay_status, float(total_paid_var.get()), float(total_debt_var.get()), now_str
+                order_no_var.get(), customer_id, total, pay_status, float(total_paid_var.get()), float(total_debt_var.get()), now_str, remark
             )
             
             # 初始化item_ids列表
@@ -529,7 +539,8 @@ def OutboundDialog(parent, cart_list, customer_name=None):
                     customer_id = c[0]
                     break
             
-            remark = ''
+            # 获取备注内容
+            remark = remark_var.get()
             draft_id = dbutil.insert_draft_order(customer_id, total, remark, now_str)
             
             for item in tree.get_children():
