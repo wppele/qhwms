@@ -112,7 +112,7 @@ def OutboundDialog(parent, cart_list, customer_name=None):
                 size = inv[3] if inv else ''
                 quantity = item[3]
                 price = item[4] if len(item) > 4 else 0.0
-                amount = item[6] if len(item) > 5 else 0.0
+                amount = item[6] if len(item) > 6 else 0.0
                 detail_tree.insert('', tk.END, values=(product_no, color, unit, size, quantity, f"{price:.2f}", f"{amount:.2f}"))
         tree.bind('<<TreeviewSelect>>', show_detail)
         
@@ -163,9 +163,9 @@ def OutboundDialog(parent, cart_list, customer_name=None):
         for v, qty, price in cart_list:
             inv = dbutil.get_inventory_by_id(v[0])
             product_no = inv[2] if inv else ''      # 0
-            color = inv[4] if inv else ''           # 1
-            unit = inv[5] if inv else ''            # 2
-            size = inv[3] if inv else ''            # 3
+            color = inv[3] if inv else ''           # 1
+            unit = inv[4] if inv else ''            # 2
+            size = inv[5] if inv else ''            # 3
             amount = qty * price                    # 6
             # values顺序严格对应columns
             tree.insert("", tk.END, values=(product_no, color, unit, size, qty, price, f"{amount:.2f}", v[0]))
@@ -328,9 +328,9 @@ def OutboundDialog(parent, cart_list, customer_name=None):
             # 显示对话框
             search_dialog.deiconify()
         else:
-            # 只允许编辑数量、单价、金额三列
-            editable_cols = ['#5', '#6', '#7']  # 数量、单价、金额
-            col_names = {'#5': 4, '#6': 5, '#7': 6}  # 列号对应values索引
+            # 只允许编辑数量、单价、金额、尺码列
+            editable_cols = ['#4', '#5', '#6', '#7']  # 尺码、数量、单价、金额
+            col_names = {'#4': 3, '#5': 4, '#6': 5, '#7': 6}  # 列号对应values索引
             if col not in editable_cols:
                 return
             

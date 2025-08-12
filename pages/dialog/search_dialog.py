@@ -80,8 +80,8 @@ class ProductSearchDialog(tk.Toplevel):
         self.clear_tree()
         all_inv = dbutil.get_all_inventory()
         for inv in all_inv:
-            # inv[0] = id, inv[3] = product_no, inv[4] = color, inv[5] = unit, inv[6] = size, inv[-1] = stock
-            self.tree.insert('', tk.END, values=(inv[3], inv[4], inv[5], inv[6], inv[-1]), tags=(inv[0],))
+            # inv[0] = id, inv[3] = product_no, inv[5] = color, inv[6] = unit, inv[4] = size, inv[-1] = stock
+            self.tree.insert('', tk.END, values=(inv[3], inv[5], inv[6], inv[4], inv[-1]), tags=(inv[0],))
 
     def search_products(self):
         """根据货号搜索商品"""
