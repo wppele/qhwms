@@ -328,9 +328,9 @@ def OutboundDialog(parent, cart_list, customer_name=None):
             # 显示对话框
             search_dialog.deiconify()
         else:
-            # 只允许编辑数量、单价、金额、尺码列
-            editable_cols = ['#4', '#5', '#6', '#7']  # 尺码、数量、单价、金额
-            col_names = {'#4': 3, '#5': 4, '#6': 5, '#7': 6}  # 列号对应values索引
+            # 只允许编辑数量、单价、尺码列
+            editable_cols = ['#4', '#5', '#6']  # 尺码、数量、单价
+            col_names = {'#4': 3, '#5': 4, '#6': 5}  # 列号对应values索引
             if col not in editable_cols:
                 return
             
@@ -372,15 +372,86 @@ def OutboundDialog(parent, cart_list, customer_name=None):
                 def on_tab(e):
                     next_idx = editable_cols.index(col) + 1
                     if next_idx < len(editable_cols):
+                        # 同一行的下一列
                         next_col = editable_cols[next_idx]
                         save_and_next(next_col)
                     else:
-                        save_and_next()
+                        # 获取当前项
+                        current_item = tree.selection()[0]
+                        # 获取当前项的索引
+                        children = tree.get_children()
+                        current_index = children.index(current_item)
+                        # 检查是否有下一项
+                        if current_index + 1 < len(children):
+                            # 获取下一项
+                            next_item = children[current_index + 1]
+                            # 保存当前项的更改
+                            save_and_next()
+                            # 延迟编辑下一项的第一个可编辑列
+                            tree.after(10, lambda: edit_entry_by_col(next_item, editable_cols[0]))
+                        else:
+                            # 没有下一项，保存当前项的更改
+                            save_and_next()
                     return "break"
                 
+                def on_left(e):
+                    prev_idx = editable_cols.index(col) - 1
+                    if prev_idx >= 0:
+                        prev_col = editable_cols[prev_idx]
+                        save_and_next(prev_col)
+                    return "break"
+
+                def on_right(e):
+                    next_idx = editable_cols.index(col) + 1
+                    if next_idx < len(editable_cols):
+                        next_col = editable_cols[next_idx]
+                        save_and_next(next_col)
+                    else:
+                        # 同一行最后一列按右键，跳到下一行第一列
+                        current_item = tree.selection()[0]
+                        children = tree.get_children()
+                        current_index = children.index(current_item)
+                        if current_index + 1 < len(children):
+                            next_item = children[current_index + 1]
+                            save_and_next()
+                            tree.after(10, lambda: edit_entry_by_col(next_item, editable_cols[0]))
+                        else:
+                            save_and_next()
+                    return "break"
+
+                def on_up(e):
+                    current_item = tree.selection()[0]
+                    children = tree.get_children()
+                    current_index = children.index(current_item)
+                    if current_index > 0:
+                        prev_item = children[current_index - 1]
+                        save_and_next()
+                        # 确保选择上一行
+                        tree.selection_set(prev_item)
+                        tree.see(prev_item)
+                        tree.after(10, lambda col=col: edit_entry_by_col(prev_item, col))
+                    return "break"
+
+                def on_down(e):
+                    current_item = tree.selection()[0]
+                    children = tree.get_children()
+                    current_index = children.index(current_item)
+                    if current_index + 1 < len(children):
+                        next_item = children[current_index + 1]
+                        save_and_next()
+                        # 确保选择下一行
+                        tree.selection_set(next_item)
+                        tree.see(next_item)
+                        tree.after(10, lambda col=col: edit_entry_by_col(next_item, col))
+                    return "break"
+
                 entry.bind('<FocusOut>', on_focus_out)
                 entry.bind('<Return>', on_return)
                 entry.bind('<Tab>', on_tab)
+                entry.bind('<Left>', on_left)
+                entry.bind('<Right>', on_right)
+                entry.bind('<Up>', on_up)
+                entry.bind('<Down>', on_down)
             
             edit_entry_by_col(item, col)
     
