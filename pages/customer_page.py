@@ -19,11 +19,40 @@ def CustomerPage(parent, username):
     btn_del.pack(side=tk.LEFT, padx=3)
     btn_import = ttk.Button(toolbar, text="📤", width=3)
     btn_import.pack(side=tk.LEFT, padx=3)
+    # 搜索框 - 放到导入按钮右侧
+    search_frame = ttk.Frame(toolbar)
+    search_frame.pack(side=tk.LEFT, padx=10)
+    search_var = tk.StringVar()
+    search_entry = ttk.Entry(search_frame, textvariable=search_var, width=20)
+    search_entry.pack(side=tk.LEFT, padx=5)
+    
+    def on_search():
+        keyword = search_var.get().strip().lower()
+        if not keyword:
+            load_data()
+            return
+        # 清空当前数据
+        for row in tree.get_children():
+            tree.delete(row)
+        # 搜索并加载数据
+        for idx, row in enumerate(dbutil.get_all_customers(), 1):
+            # row: (id, name, address, phone, logistics_info)
+            name = row[1].lower()
+            phone = row[3].lower()
+            if keyword in name or keyword in phone:
+                tree.insert("", tk.END, values=(idx, *row[1:]))
+    
+    btn_search = ttk.Button(search_frame, text="搜索", command=on_search)
+    btn_search.pack(side=tk.LEFT)
+    
     # 右侧密码设置按钮
     right_toolbar = ttk.Frame(toolbar)
     right_toolbar.pack(side=tk.RIGHT, padx=10)
     btn_password = ttk.Button(right_toolbar, text="密码设置", width=8)
     btn_password.pack(side=tk.RIGHT)
+
+    # 为搜索框添加回车事件
+    search_entry.bind('<Return>', lambda event: on_search())
 
     # 密码设置功能实现
     def handle_password_setting():
