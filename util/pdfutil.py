@@ -117,7 +117,7 @@ class PDFUtil:
         logistics = customer[4] if customer else ""
         outbound_date = order.get('outbound_date', '')[:10]
         customer_info_text = (
-            f"客户名称：{cust_name}    客户地址：{cust_addr}    联系电话：{customer[3] if customer else ''}    日  期：{outbound_date}\n"
+            f"客户名称：{cust_name}    客户地址：{cust_addr}    日  期：{outbound_date}\n"
             f"物流信息：{logistics or ''}"
         )
         customer_info_table = Table([[customer_info_text]], colWidths=[180*mm], hAlign='LEFT')
