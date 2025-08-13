@@ -163,8 +163,7 @@ class CustomerStatementPage(ttk.Frame):
         # 设置为父窗口的临时窗口，避免成为独立顶级窗口
         detail_window.transient(self.parent)
 
-        # 设置窗口置顶
-        detail_window.attributes('-topmost', True)
+ 
 
         # 使用utils中的方法居中显示
         center_window(detail_window, 900, 600)
@@ -253,7 +252,7 @@ class CustomerStatementPage(ttk.Frame):
         btn_frame.pack(side=tk.LEFT, padx=10)
 
         # 导出PDF按钮
-        ttk.Button(btn_frame, text="导出PDF", command=lambda: self.export_to_pdf(values, order_details)).pack(pady=5, fill=tk.X)
+        ttk.Button(btn_frame, text="导出PDF", command=lambda: self.export_to_pdf(values, order_details, detail_window)).pack(pady=5, fill=tk.X)
 
         # 关闭按钮
         ttk.Button(btn_frame, text="关闭", command=detail_window.destroy).pack(pady=5, fill=tk.X)
@@ -329,11 +328,12 @@ class CustomerStatementPage(ttk.Frame):
 
         return result
 
-    def export_to_pdf(self, statement_data, order_details):
+    def export_to_pdf(self, statement_data, order_details, parent=None):
         """
         导出对账单到PDF
         :param statement_data: 对账单数据
         :param order_details: 订单详情数据
+        :param parent: 父窗口，用于设置对话框的层级
         """
         # 准备数据
         customer_name = statement_data[2]
@@ -372,4 +372,4 @@ class CustomerStatementPage(ttk.Frame):
         }
 
         # 调用PDF工具生成对账单
-        PDFUtil.create_customer_statement_pdf(pdf_data)
+        PDFUtil.create_customer_statement_pdf(pdf_data, parent=parent)

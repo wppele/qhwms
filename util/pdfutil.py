@@ -69,24 +69,36 @@ class PDFUtil:
             return False
 
     @staticmethod
-    def create_order_detail_pdf(order, items, customer, file_path=None):
+    def create_order_detail_pdf(order, items, customer, file_path=None, parent=None):
         """
         导出出库单详情PDF
         :param order: 订单信息
         :param items: 订单项列表
         :param customer: 客户信息
         :param file_path: 保存路径，默认为None（会弹出保存对话框）
+        :param parent: 父窗口，用于设置对话框的层级
         """
         # 注册字体
         font_name, _ = PDFUtil.register_fonts()
 
         # 选择保存路径
         if not file_path:
+            # 创建一个临时的顶级窗口作为对话框的父窗口
+            if not parent:
+                parent = tk.Toplevel()
+                parent.withdraw()  # 隐藏窗口
+            else:
+                # 确保父窗口是顶级窗口
+                while parent.master:
+                    parent = parent.master
+
             file_path = filedialog.asksaveasfilename(
                 initialfile=f'{order.get("order_no", "订单")}.pdf',
                 defaultextension='.pdf',
                 filetypes=[('PDF 文件', '*.pdf')],
-                title='导出PDF')
+                title='导出PDF',
+                parent=parent
+            )
             if not file_path:
                 return False
 
@@ -112,15 +124,16 @@ class PDFUtil:
         elements.append(title)
 
         # 客户信息
+        order_no = order.get('order_no', '')
         cust_name = customer[1] if customer else f"ID:{order.get('customer_id', '')}"
         cust_addr = customer[2] if customer else ""
         logistics = customer[4] if customer else ""
         outbound_date = order.get('outbound_date', '')[:10]
         customer_info_text = (
-            f"客户名称：{cust_name}    客户地址：{cust_addr}    日  期：{outbound_date}\n"
-            f"物流信息：{logistics or ''}"
+            f"单号：{order_no}    客户：{cust_name}    地址：{cust_addr}    日  期：{outbound_date}\n"
+            f"物流：{logistics or ''}"
         )
-        customer_info_table = Table([[customer_info_text]], colWidths=[180*mm], hAlign='LEFT')
+        customer_info_table = Table([[customer_info_text]], colWidths=[180*mm], hAlign='CENTER')
         customer_info_table.setStyle(TableStyle([
             ("ALIGN", (0,0), (-1,-1), "LEFT"),
             ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
@@ -160,7 +173,7 @@ class PDFUtil:
             else:
                 product_data.append([idx, product_no, color, unit, size, quantity, f"{price:.2f}", f"{amount:.2f}"])
 
-        product_table = Table(product_data, colWidths=col_widths, hAlign='LEFT')
+        product_table = Table(product_data, colWidths=col_widths, hAlign='CENTER')
         product_table.setStyle(TableStyle([
             ("GRID", (0,0), (-1,-1), 0.5, colors.black),
             ("ALIGN", (0,0), (-1,-1), "CENTER"),
@@ -184,9 +197,9 @@ class PDFUtil:
                 f"已付金额：{total_paid:.2f}    "
                 f"未支付金额：{total_debt:.2f}"
             )
-        total_info_table = Table([[summary_text]], colWidths=[180*mm], hAlign='LEFT')
+        total_info_table = Table([[summary_text]], colWidths=[180*mm], hAlign='CENTER')
         total_info_table.setStyle(TableStyle([
-            ("ALIGN", (0,0), (-1,-1), "LEFT"),
+            ("ALIGN", (0,0), (-1,-1), "CENTER"),
             ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
             ("FONTNAME", (0,0), (-1,-1), font_name),
             ("FONTSIZE", (0,0), (-1,-1), 11),
@@ -196,7 +209,7 @@ class PDFUtil:
         # 总备注区域
         remark = order.get('remark', '无')
         remark_text = f"备注信息：{remark}"
-        remark_table = Table([[remark_text]], colWidths=[180*mm], hAlign='LEFT')
+        remark_table = Table([[remark_text]], colWidths=[180*mm], hAlign='CENTER')
         remark_table.setStyle(TableStyle([
             ("ALIGN", (0,0), (-1,-1), "LEFT"),
             ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
@@ -208,9 +221,9 @@ class PDFUtil:
 
         # 签字区
         sign_data = [["制单人：", "出库：", "送货人：", "收货人："]]
-        sign_table = Table(sign_data, colWidths=[38*mm]*5)
+        sign_table = Table(sign_data, colWidths=[38*mm]*5, hAlign='CENTER')
         sign_table.setStyle(TableStyle([
-            ("ALIGN", (0,0), (-1,-1), "LEFT"),
+            ("ALIGN", (0,0), (-1,-1), "CENTER"),
             ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
             ("FONTNAME", (0,0), (-1,-1), font_name),
             ("FONTSIZE", (0,0), (-1,-1), 10),
@@ -221,22 +234,44 @@ class PDFUtil:
         return PDFUtil.create_pdf(file_path, elements)
 
     @staticmethod
-    def create_customer_statement_pdf(statement_data, file_path=None):
+    def create_customer_statement_pdf(statement_data, file_path=None, parent=None):
         """
         导出客户对账单PDF
         :param statement_data: 对账单数据
         :param file_path: 保存路径，默认为None（会弹出保存对话框）
+        :param parent: 父窗口，用于设置对话框的层级
         """
         # 注册字体
         font_name, _ = PDFUtil.register_fonts()
 
         # 选择保存路径
         if not file_path:
-            file_path = filedialog.asksaveasfilename(
-                defaultextension=".pdf",
-                filetypes=[("PDF files", "*.pdf")],
-                title="导出对账单"
-            )
+            # 创建一个临时的顶级窗口作为对话框的父窗口
+            if not parent:
+                parent = tk.Toplevel()
+                parent.withdraw()  # 隐藏窗口
+            else:
+                # 确保父窗口是顶级窗口
+                while parent.master:
+                    parent = parent.master
+
+            # 保存原始topmost状态
+            original_topmost = parent.attributes('-topmost') if hasattr(parent, 'attributes') else False
+            try:
+                # 临时将父窗口的topmost设置为False，以便文件对话框能显示在顶层
+                parent.attributes('-topmost', False)
+
+                file_path = filedialog.asksaveasfilename(
+                    defaultextension=".pdf",
+                    filetypes=[("PDF files", "*.pdf")],
+                    title="导出对账单",
+                    parent=parent
+                )
+            finally:
+                # 恢复父窗口的原始topmost状态
+                if hasattr(parent, 'attributes'):
+                    parent.attributes('-topmost', original_topmost)
+
             if not file_path:
                 return False
 
@@ -255,13 +290,13 @@ class PDFUtil:
 
         # 客户信息和日期区域
         customer_info = [
-            [f"客户名称: {statement_data['customer_name']}", f"账单周期: {statement_data['bill_period']}", f"出账日期: {statement_data['issue_date']}"]
+            [f"客户: {statement_data['customer_name']}", f"账单周期: {statement_data['bill_period']}", f"出账日期: {statement_data['issue_date']}"]
         ]
-        customer_info_table = Table(customer_info, colWidths=[90, 200, 120])
+        customer_info_table = Table(customer_info, colWidths=[90, 200, 120], hAlign='CENTER')
         customer_info_table.setStyle(TableStyle([
             ('FONTNAME', (0, 0), (-1, -1), font_name),
             ('FONTSIZE', (0, 0), (-1, -1), 11),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('PADDING', (0, 0), (-1, -1), 5),
         ]))
         elements.append(customer_info_table)
@@ -279,8 +314,7 @@ class PDFUtil:
         amount_info_table.setStyle(TableStyle([
             ('FONTNAME', (0, 0), (-1, -1), font_name),
             ('FONTSIZE', (0, 0), (-1, -1), 11),
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.red),
-            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
         ]))
         elements.append(amount_info_table)
         elements.append(Spacer(1, 12))
@@ -313,7 +347,6 @@ class PDFUtil:
             ('FONTNAME', (0, 0), (-1, -1), font_name),
             ('FONTSIZE', (0, 0), (0, 0), 12),
             ('FONTSIZE', (0, 1), (0, 1), 10),
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.red),
             ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
             ('BOLDFONT', (0, 0), (0, 0), 1),
         ]))
