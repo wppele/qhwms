@@ -95,7 +95,7 @@ class ProductSearchDialog(tk.Toplevel):
         for inv in all_inv:
             product_no = inv[3].lower()
             if keyword in product_no:
-                self.tree.insert('', tk.END, values=(inv[3], inv[4], inv[5], inv[6], inv[-1]), tags=(inv[0],))
+                self.tree.insert('', tk.END, values=(inv[3], inv[5], inv[6], inv[4], inv[-1]), tags=(inv[0],))
 
     def clear_tree(self):
         """清空商品列表"""
