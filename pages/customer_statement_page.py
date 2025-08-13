@@ -162,9 +162,6 @@ class CustomerStatementPage(ttk.Frame):
 
         # 设置为父窗口的临时窗口，避免成为独立顶级窗口
         detail_window.transient(self.parent)
-
- 
-
         # 使用utils中的方法居中显示
         center_window(detail_window, 900, 600)
 
