@@ -2,7 +2,6 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from util import dbutil
 from util.utils import center_window
-import pandas as pd
 import os
 
 def CustomerPage(parent, username):
@@ -179,7 +178,6 @@ def CustomerPage(parent, username):
         def download_template():
             try:
                 # 创建Excel模板
-                import pandas as pd
                 from openpyxl import Workbook
                 
                 # 定义模板数据
@@ -189,7 +187,20 @@ def CustomerPage(parent, username):
                     '电话': ['13800138000', '13900139000'],
                     '物流信息': ['物流信息1', '物流信息2']
                 }
-                df = pd.DataFrame(template_data)
+                
+                # 使用openpyxl创建工作簿
+                wb = Workbook()
+                ws = wb.active
+                ws.title = '客户信息'
+                
+                # 添加表头
+                headers = list(template_data.keys())
+                ws.append(headers)
+                
+                # 添加示例数据
+                for i in range(len(template_data['姓名'])):
+                    row_data = [template_data[col][i] for col in headers]
+                    ws.append(row_data)
                 
                 # 保存文件
                 file_path = filedialog.asksaveasfilename(
@@ -199,7 +210,7 @@ def CustomerPage(parent, username):
                     initialfile="客户信息模板"
                 )
                 if file_path:
-                    df.to_excel(file_path, index=False)
+                    wb.save(file_path)
                     messagebox.showinfo("成功", f"模板已成功下载到: {file_path}")
             except Exception as e:
                 messagebox.showerror("错误", f"下载模板失败: {str(e)}")
@@ -218,24 +229,37 @@ def CustomerPage(parent, username):
 
             try:
                 # 读取Excel文件
-                df = pd.read_excel(file_path)
+                from openpyxl import load_workbook
+                
+                wb = load_workbook(file_path, read_only=True)
+                ws = wb.active
+                
+                # 获取表头
+                headers = []
+                for cell in ws[1]:
+                    headers.append(cell.value)
+                
                 # 检查必要的列是否存在
                 required_columns = ['姓名', '地址', '电话']
                 for col in required_columns:
-                    if col not in df.columns:
+                    if col not in headers:
                         messagebox.showerror("错误", f"Excel文件中缺少必要的列: {col}")
                         return
 
                 # 导入数据
                 success_count = 0
-                for index, row in df.iterrows():
-                    name = str(row['姓名']).strip()
-                    address = str(row['地址']).strip()
-                    phone = str(row['电话']).strip()
+                # 跳过表头行，从第二行开始读取
+                for row in ws.iter_rows(min_row=2, values_only=True):
+                    row_dict = {headers[i]: row[i] for i in range(len(headers))}
+                    
+                    name = str(row_dict['姓名']).strip() if row_dict['姓名'] is not None else ''
+                    address = str(row_dict['地址']).strip() if row_dict['地址'] is not None else ''
+                    phone = str(row_dict['电话']).strip() if row_dict['电话'] is not None else ''
+                    
                     # 处理物流信息
                     logistics_info = ''
-                    if '物流信息' in df.columns:
-                        logistics_info = str(row['物流信息']).strip()
+                    if '物流信息' in headers:
+                        logistics_info = str(row_dict['物流信息']).strip() if row_dict['物流信息'] is not None else ''
 
                     if name:
                         dbutil.insert_customer(name, address, phone, logistics_info)

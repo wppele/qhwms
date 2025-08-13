@@ -1,6 +1,7 @@
 #库存页面
 import tkinter as tk
 from tkinter import ttk, filedialog
+import tkinter.messagebox as messagebox
 from util.utils import center_window
 from util import dbutil
 import util.utils as utils
@@ -55,38 +56,49 @@ def StockPage(parent, main_win):
         def do_import():
             file_path = file_path_var.get().strip()
             if not file_path:
-                tk.messagebox.showerror("错误", "请选择文件")
+                messagebox.showerror("错误", "请选择文件")
                 return
             
             try:
-                # 检查是否安装了pandas和openpyxl
-                import pandas as pd
+                # 检查是否安装了openpyxl
+                import openpyxl
             except ImportError:
-                tk.messagebox.showerror("错误", "请安装pandas和openpyxl库\n命令: pip install pandas openpyxl")
+                messagebox.showerror("错误", "请安装openpyxl库\n命令: pip install openpyxl")
                 return
             
             try:
                 # 读取Excel文件
-                df = pd.read_excel(file_path)
+                from openpyxl import load_workbook
+                
+                wb = load_workbook(file_path, read_only=True)
+                ws = wb.active
+                
+                # 获取表头
+                headers = []
+                for cell in ws[1]:
+                    headers.append(cell.value)
                 
                 # 检查必要的列是否存在
                 required_columns = ['厂家', '货号', '数量', '单价', '入库日期']
-                missing_columns = [col for col in required_columns if col not in df.columns]
+                missing_columns = [col for col in required_columns if col not in headers]
                 if missing_columns:
-                    tk.messagebox.showerror("错误", f"Excel文件缺少必要的列: {', '.join(missing_columns)}")
+                    messagebox.showerror("错误", f"Excel文件缺少必要的列: {', '.join(missing_columns)}")
                     return
                 
                 # 准备库存数据列表
                 stocks = []
-                for _, row in df.iterrows():
-                    factory = str(row.get('厂家', '')).strip()
-                    product_no = str(row.get('货号', '')).strip()
-                    size = str(row.get('尺码', '')).strip()
-                    color = str(row.get('颜色', '')).strip()
-                    unit = str(row.get('单位', '个')).strip()
-                    in_quantity = row.get('数量', 0)
-                    price = row.get('单价', 0)
-                    in_date = str(row.get('入库日期', '')).strip()
+                # 跳过表头行，从第二行开始读取
+                for row in ws.iter_rows(min_row=2, values_only=True):
+                    row_dict = {headers[i]: row[i] for i in range(len(headers))}
+                    
+                    factory = str(row_dict['厂家']).strip() if row_dict['厂家'] is not None else ''
+                    product_no = str(row_dict['货号']).strip() if row_dict['货号'] is not None else ''
+                    size = str(row_dict.get('尺码', '')).strip() if row_dict.get('尺码') is not None else ''
+                    color = str(row_dict.get('颜色', '')).strip() if row_dict.get('颜色') is not None else ''
+                    unit = str(row_dict.get('单位', '个')).strip() if row_dict.get('单位') is not None else '个'
+                    in_quantity = row_dict['数量']
+                    price = row_dict['单价']
+                    in_date = str(row_dict['入库日期']).strip() if row_dict['入库日期'] is not None else ''
                     
                     # 验证数据
                     if not all([factory, product_no, in_quantity, price, in_date]):
@@ -102,40 +114,44 @@ def StockPage(parent, main_win):
                     stocks.append((factory, product_no, size, color, unit, in_quantity, price, total, in_date))
                 
                 if not stocks:
-                    tk.messagebox.showerror("错误", "没有有效的库存数据")
+                    messagebox.showerror("错误", "没有有效的库存数据")
                     return
                 
                 # 批量插入库存
                 inserted_count = dbutil.batch_insert_stocks(stocks)
                 
-                tk.messagebox.showinfo("成功", f"成功导入 {inserted_count} 条库存记录")
+                messagebox.showinfo("成功", f"成功导入 {inserted_count} 条库存记录")
                 import_dialog.destroy()
                 load_stock_data()
             except Exception as e:
-                tk.messagebox.showerror("错误", f"导入失败: {str(e)}")
+                messagebox.showerror("错误", f"导入失败: {str(e)}")
         
         # 下载模板按钮
         def download_template():
             try:
-                # 检查是否安装了pandas和openpyxl
-                import pandas as pd
+                # 检查是否安装了openpyxl
+                import openpyxl
             except ImportError:
-                tk.messagebox.showerror("错误", "请安装pandas和openpyxl库\n命令: pip install pandas openpyxl")
+                messagebox.showerror("错误", "请安装openpyxl库\n命令: pip install openpyxl")
                 return
             
             try:
                 # 创建模板数据
-                template_data = {
-                    '厂家': ['示例厂家'],
-                    '货号': ['示例货号'],
-                    '尺码': ['示例尺码'],
-                    '颜色': ['示例颜色'],
-                    '单位': ['个'],
-                    '数量': [10],
-                    '单价': [99.99],
-                    '入库日期': [utils.get_current_date()]
-                }
-                df = pd.DataFrame(template_data)
+                from openpyxl import Workbook
+                
+                # 创建工作簿和工作表
+                wb = Workbook()
+                ws = wb.active
+                ws.title = '库存模板'
+                
+                # 添加表头
+                headers = ['厂家', '货号', '尺码', '颜色', '单位', '数量', '单价', '入库日期']
+                ws.append(headers)
+                
+                # 添加示例数据
+                current_date = utils.get_current_date()
+                example_data = ['示例厂家', '示例货号', '示例尺码', '示例颜色', '个', 10, 99.99, current_date]
+                ws.append(example_data)
                 
                 # 让用户选择保存路径
                 save_path = filedialog.asksaveasfilename(
@@ -146,10 +162,10 @@ def StockPage(parent, main_win):
                 )
                 
                 if save_path:
-                    df.to_excel(save_path, index=False)
-                    tk.messagebox.showinfo("成功", f"模板已保存到: {save_path}")
+                    wb.save(save_path)
+                    messagebox.showinfo("成功", f"模板已保存到: {save_path}")
             except Exception as e:
-                tk.messagebox.showerror("错误", f"保存模板失败: {str(e)}")
+                messagebox.showerror("错误", f"保存模板失败: {str(e)}")
         
         btn_template = ttk.Button(import_dialog, text="下载模板", command=download_template)
         btn_template.pack(pady=10)
@@ -658,6 +674,7 @@ def StockPage(parent, main_win):
                         tk.messagebox.showinfo("成功", "新增成功！")
                     vars['color'].set("")
                     vars['in_quantity'].set("")
+                    vars['price'].set("")
                     vars['total'].set("")
                     entry_refs['color'].focus_set()
                 load_stock_data()
