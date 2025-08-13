@@ -123,26 +123,44 @@ class PDFUtil:
         title = Paragraph("千辉鞋业销售单", styles['CNTitle'])
         elements.append(title)
 
-        # 客户信息
+        # 客户信息 - 第一行：单号、客户、地址
         order_no = order.get('order_no', '')
         cust_name = customer[1] if customer else f"ID:{order.get('customer_id', '')}"
         cust_addr = customer[2] if customer else ""
-        logistics = customer[4] if customer else ""
         outbound_date = order.get('outbound_date', '')[:10]
-        customer_info_text = (
-            f"单号：{order_no}    客户：{cust_name}    地址：{cust_addr}    日  期：{outbound_date}\n"
-            f"物流：{logistics or ''}"
-        )
-        customer_info_table = Table([[customer_info_text]], colWidths=[180*mm], hAlign='CENTER')
-        customer_info_table.setStyle(TableStyle([
-            ("ALIGN", (0,0), (-1,-1), "LEFT"),
+        logistics = customer[4] if customer else ""
+
+        # 第一行信息（三项均匀分布）
+        first_line_data = [
+            f"单号：{order_no}",
+            f"客户：{cust_name}",
+            f"地址：{cust_addr}"
+        ]
+        first_line_table = Table([first_line_data], colWidths=[60*mm, 60*mm, 60*mm], hAlign='CENTER')
+        first_line_table.setStyle(TableStyle([
+            ("ALIGN", (0,0), (-1,-1), "CENTER"),
             ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
             ("FONTNAME", (0,0), (-1,-1), font_name),
             ("FONTSIZE", (0,0), (-1,-1), 11),
         ]))
-        elements.append(customer_info_table)
+        elements.append(first_line_table)
 
-        # 获取是否为库房视图的参数
+        # 第二行信息（物流与单号对齐，日期与地址对齐）
+        second_line_data = [
+            f"物流：{logistics or ''}",
+            "",  # 空列，用于对齐客户信息
+            f"日期：{outbound_date}"
+        ]
+        second_line_table = Table([second_line_data], colWidths=[60*mm, 60*mm, 60*mm], hAlign='CENTER')
+        second_line_table.setStyle(TableStyle([
+            ("ALIGN", (0,0), (-1,-1), "CENTER"),
+            ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+            ("FONTNAME", (0,0), (-1,-1), font_name),
+            ("FONTSIZE", (0,0), (-1,-1), 11),
+        ]))
+        elements.append(second_line_table)
+
+        # 添加show_kufang变量定义
         show_kufang = order.get('show_kufang', True)
 
         # 根据视图类型设置表头和列宽
@@ -156,6 +174,7 @@ class PDFUtil:
         product_data = [product_header]
         total_quantity = 0
         total_amount = 0.0
+        order_remark = order.get('remark', '无')  # 获取订单备注
         for idx, item in enumerate(items, 1):
             product_no = item.get('product_no', '')
             color = item.get('color', '')
@@ -173,6 +192,26 @@ class PDFUtil:
             else:
                 product_data.append([idx, product_no, color, unit, size, quantity, f"{price:.2f}", f"{amount:.2f}"])
 
+        # 汇总区 - 添加到产品数据表格中（明细下方，备注上方）
+        total_paid = order.get('total_paid', 0.0)
+        total_debt = order.get('total_debt', 0.0)
+        # 根据视图类型设置汇总信息
+        merged_remark = f"备注：{order_remark}"
+        if show_kufang:
+            # 6列布局的汇总行（合并所有列）
+            product_data.append([f'总计数量：{total_quantity}'] + [''] * 5)
+            product_data.append([merged_remark] + [''] * 5)
+        else:
+            # 8列布局的汇总行（合并所有列）
+            summary_text = (
+                f'总计数量：{total_quantity}    '
+                f'总计金额：{total_amount:.2f}    '
+                f'已付金额：{total_paid:.2f}    '
+                f'未支付金额：{total_debt:.2f}'
+            )
+            product_data.append([summary_text] + [''] * 7)
+            product_data.append([merged_remark] + [''] * 7)
+
         product_table = Table(product_data, colWidths=col_widths, hAlign='CENTER')
         product_table.setStyle(TableStyle([
             ("GRID", (0,0), (-1,-1), 0.5, colors.black),
@@ -181,43 +220,20 @@ class PDFUtil:
             ("TEXTCOLOR", (0,0), (-1,0), colors.black),
             ("FONTNAME", (0,0), (-1,-1), font_name),
             ("FONTSIZE", (0,0), (-1,-1), 10),
+            # 设置汇总行样式
+            ("FONTNAME", (0,-2), (-1,-2), font_name),
+            ("FONTSIZE", (0,-2), (-1,-2), 10),
+            ("BOTTOMPADDING", (0,-2), (-1,-2), 5),
+            ("ALIGN", (0,-2), (-1,-2), "LEFT"),
+            # 合并汇总行所有单元格（倒数第二行）
+            ("SPAN", (0,-2), (-1,-2)),
+
+            # 设置备注行样式
+            ("ALIGN", (0,-1), (-1,-1), "LEFT"),  # 备注文字左对齐
+            # 合并备注行所有单元格
+            ("SPAN", (0,-1), (-1,-1)),  # 合并从第一列到最后一列
         ]))
         elements.append(product_table)
-
-        # 汇总区
-        total_paid = order.get('total_paid', 0.0)
-        total_debt = order.get('total_debt', 0.0)
-        # 根据视图类型设置汇总信息
-        if show_kufang:
-            summary_text = f"总计数量：{total_quantity}"
-        else:
-            summary_text = (
-                f"总计数量：{total_quantity}    "
-                f"总计金额：{total_amount:.2f}    "
-                f"已付金额：{total_paid:.2f}    "
-                f"未支付金额：{total_debt:.2f}"
-            )
-        total_info_table = Table([[summary_text]], colWidths=[180*mm], hAlign='CENTER')
-        total_info_table.setStyle(TableStyle([
-            ("ALIGN", (0,0), (-1,-1), "CENTER"),
-            ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
-            ("FONTNAME", (0,0), (-1,-1), font_name),
-            ("FONTSIZE", (0,0), (-1,-1), 11),
-        ]))
-        elements.append(total_info_table)
-
-        # 总备注区域
-        remark = order.get('remark', '无')
-        remark_text = f"备注信息：{remark}"
-        remark_table = Table([[remark_text]], colWidths=[180*mm], hAlign='CENTER')
-        remark_table.setStyle(TableStyle([
-            ("ALIGN", (0,0), (-1,-1), "LEFT"),
-            ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
-            ("FONTNAME", (0,0), (-1,-1), font_name),
-            ("FONTSIZE", (0,0), (-1,-1), 11),
-            ("TOPPADDING", (0,0), (-1,-1), 3),
-        ]))
-        elements.append(remark_table)
 
         # 签字区
         sign_data = [["制单人：", "出库：", "送货人：", "收货人："]]
