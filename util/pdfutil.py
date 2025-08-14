@@ -277,11 +277,16 @@ class PDFUtil:
                 # 临时将父窗口的topmost设置为False，以便文件对话框能显示在顶层
                 parent.attributes('-topmost', False)
 
+                # 获取对账单号作为默认文件名
+                statement_no = statement_data.get('statement_no', '未命名对账单')
+                default_filename = f"对账单_{statement_no}.pdf"
+
                 file_path = filedialog.asksaveasfilename(
                     defaultextension=".pdf",
                     filetypes=[("PDF files", "*.pdf")],
                     title="导出对账单",
-                    parent=parent
+                    parent=parent,
+                    initialfile=default_filename  # 设置默认文件名
                 )
             finally:
                 # 恢复父窗口的原始topmost状态
@@ -306,9 +311,13 @@ class PDFUtil:
 
         # 客户信息区域 - 调整布局
         customer_info = [
-            [f"对账单号: {statement_data.get('statement_no', '')}", f"客户: {statement_data['customer_name']}    账单周期: {statement_data['bill_period']}"]
+            [
+                f"对账单号: {statement_data.get('statement_no', '')}", 
+                f"客户: {statement_data['customer_name']}", 
+                f"账单周期: {statement_data['bill_period']}"
+            ]
         ]
-        customer_info_table = Table(customer_info, colWidths=[200, 300], hAlign='CENTER')
+        customer_info_table = Table(customer_info, colWidths=[150, 150, 150], hAlign='LEFT')
         customer_info_table.setStyle(TableStyle([
             ('FONTNAME', (0, 0), (-1, -1), font_name),
             ('FONTSIZE', (0, 0), (-1, -1), 11),
@@ -326,7 +335,8 @@ class PDFUtil:
                 f"总计应付: {statement_data['total_amount']:.2f}"
             ]
         ]
-        amount_info_table = Table(amount_info, colWidths=[150, 150, 150])
+        amount_info_table = Table(amount_info, colWidths=[150, 150, 150], hAlign='LEFT')
+
         amount_info_table.setStyle(TableStyle([
             ('FONTNAME', (0, 0), (-1, -1), font_name),
             ('FONTSIZE', (0, 0), (-1, -1), 11),
@@ -380,17 +390,17 @@ class PDFUtil:
         # 添加总计行（合并所有列）
         table_data.append([f"总计: {total_amount:.2f} （大写：{chinese_total}）"] + [''] * 8)
 
-        table = Table(table_data)
+        table = Table(table_data, colWidths=[80, 75, 47, 43, 43, 43, 50, 65, 70])
         table.setStyle(TableStyle([
             ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-            ('ALIGN', (0, 0), (-1, -2), 'CENTER'),  # 除最后一行外居中对齐
+            ('ALIGN', (0, 0), (-1, -2), 'CENTER'), 
             ('FONTNAME', (0, 0), (-1, 0), font_name),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
             ('GRID', (0, 0), (-1, -1), 1, colors.black),
             ('FONTNAME', (0, 1), (-1, -1), font_name),
-            ('ALIGN', (7, 1), (8, -2), 'RIGHT'),  # 单价和金额靠右对齐
+            ('ALIGN', (7, 1), (8, -2), 'CENTER'), 
             # 设置总计行样式
-            ('ALIGN', (0, -1), (-1, -1), 'LEFT'),  # 总计行左对齐
+            ('ALIGN', (0, -1), (-1, -1), 'RIGHT'), 
             ('FONTNAME', (0, -1), (-1, -1), font_name),
             ('FONTSIZE', (0, -1), (-1, -1), 11),
             ('BOTTOMPADDING', (0, -1), (-1, -1), 5),
@@ -401,7 +411,17 @@ class PDFUtil:
         elements.append(Spacer(1, 12))
 
         # 生成PDF
-        return PDFUtil.create_pdf(file_path, elements)
+        result = PDFUtil.create_pdf(file_path, elements)
+
+        # 导出完成后显示提示
+        if result and file_path:
+            # 确保在主线程中显示消息框
+            if parent and hasattr(parent, 'after'):
+                parent.after(0, lambda: messagebox.showinfo("导出成功", f"对账单已成功导出到:\n{file_path}"))
+            else:
+                messagebox.showinfo("导出成功", f"对账单已成功导出到:\n{file_path}")
+
+        return result
 
     @staticmethod
     def create_table(data, style=None, col_widths=None):

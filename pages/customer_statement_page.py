@@ -340,6 +340,7 @@ class CustomerStatementPage(ttk.Frame):
         current_debt = float(statement_data[5])
         total_amount = float(statement_data[6])
         upper_total = self.convert_to_upper(total_amount)
+        statement_no = statement_data[1]  # 添加对账单号
 
         # 格式化订单详情数据
         formatted_orders = []
@@ -358,6 +359,7 @@ class CustomerStatementPage(ttk.Frame):
 
         # 准备PDF数据，与对账单详情对话框格式一致
         pdf_data = {
+            'statement_no': statement_no,  # 添加对账单号
             'customer_name': customer_name,
             'bill_period': bill_period,
             'issue_date': issue_date,
