@@ -136,9 +136,9 @@ class PDFUtil:
             f"客户：{cust_name}",
             f"地址：{cust_addr}"
         ]
-        first_line_table = Table([first_line_data], colWidths=[60*mm, 60*mm, 60*mm], hAlign='CENTER')
+        first_line_table = Table([first_line_data], colWidths=[60*mm, 60*mm, 60*mm], hAlign='LEFT')
         first_line_table.setStyle(TableStyle([
-            ("ALIGN", (0,0), (-1,-1), "CENTER"),
+            ("ALIGN", (0,0), (-1,-1), "LEFT"),
             ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
             ("FONTNAME", (0,0), (-1,-1), font_name),
             ("FONTSIZE", (0,0), (-1,-1), 11),
@@ -151,9 +151,9 @@ class PDFUtil:
             "",  # 空列，用于对齐客户信息
             f"日期：{outbound_date}"
         ]
-        second_line_table = Table([second_line_data], colWidths=[60*mm, 60*mm, 60*mm], hAlign='CENTER')
+        second_line_table = Table([second_line_data], colWidths=[100*mm, 20*mm, 50*mm], hAlign='LEFT')
         second_line_table.setStyle(TableStyle([
-            ("ALIGN", (0,0), (-1,-1), "CENTER"),
+            ("ALIGN", (0,0), (-1,-1), "LEFT"),
             ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
             ("FONTNAME", (0,0), (-1,-1), font_name),
             ("FONTSIZE", (0,0), (-1,-1), 11),
@@ -165,11 +165,11 @@ class PDFUtil:
 
         # 根据视图类型设置表头和列宽
         if show_kufang:
-            product_header = ["序号", "货号", "颜色", "单位", "尺码", "数量"]
-            col_widths = [12*mm, 30*mm, 18*mm, 13*mm, 18*mm, 22*mm]
+            product_header = ["序号", "货号", "颜色", "单位", "尺码", "数量", "  ", "  "]
+            col_widths = [20*mm, 40*mm, 18*mm, 13*mm, 22*mm, 22*mm, 20*mm, 22*mm]
         else:
             product_header = ["序号", "货号", "颜色", "单位", "尺码", "数量", "单价", "金额"]
-            col_widths = [12*mm, 30*mm, 18*mm, 13*mm, 18*mm, 22*mm, 15*mm, 18*mm]
+            col_widths = [20*mm, 40*mm, 18*mm, 13*mm, 22*mm, 22*mm, 20*mm, 22*mm]
 
         product_data = [product_header]
         total_quantity = 0
@@ -188,7 +188,7 @@ class PDFUtil:
             total_amount += amount
             
             if show_kufang:
-                product_data.append([idx, product_no, color, unit, size, quantity])
+                product_data.append([idx, product_no, color, unit, size, quantity,"  ","  "])
             else:
                 product_data.append([idx, product_no, color, unit, size, quantity, f"{price:.2f}", f"{amount:.2f}"])
 
@@ -304,29 +304,29 @@ class PDFUtil:
         elements.append(Paragraph("千辉鞋业-客户对账单", styles['CNTitle']))
         elements.append(Spacer(1, 12))
 
-        # 客户信息和日期区域
+        # 客户信息区域 - 调整布局
         customer_info = [
-            [f"客户: {statement_data['customer_name']}", f"账单周期: {statement_data['bill_period']}", f"出账日期: {statement_data['issue_date']}"]
+            [f"对账单号: {statement_data.get('statement_no', '')}", f"客户: {statement_data['customer_name']}    账单周期: {statement_data['bill_period']}"]
         ]
-        customer_info_table = Table(customer_info, colWidths=[90, 200, 120], hAlign='CENTER')
+        customer_info_table = Table(customer_info, colWidths=[200, 300], hAlign='CENTER')
         customer_info_table.setStyle(TableStyle([
             ('FONTNAME', (0, 0), (-1, -1), font_name),
             ('FONTSIZE', (0, 0), (-1, -1), 11),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('PADDING', (0, 0), (-1, -1), 5),
         ]))
         elements.append(customer_info_table)
         elements.append(Spacer(1, 8))
 
-        # 金额信息区域
+        # 金额信息区域 - 调整标签
         amount_info = [
             [
                 f"往期欠款: {statement_data['previous_debt']:.2f}", 
-                f"本期欠款: {statement_data['current_debt']:.2f}", 
-                f"总计金额: {statement_data['total_amount']:.2f}"
+                f"本期金额: {statement_data['current_debt']:.2f}", 
+                f"总计应付: {statement_data['total_amount']:.2f}"
             ]
         ]
-        amount_info_table = Table(amount_info, colWidths=[100, 100, 100])
+        amount_info_table = Table(amount_info, colWidths=[150, 150, 150])
         amount_info_table.setStyle(TableStyle([
             ('FONTNAME', (0, 0), (-1, -1), font_name),
             ('FONTSIZE', (0, 0), (-1, -1), 11),
@@ -338,35 +338,67 @@ class PDFUtil:
         # 订单表格
         headers = ["订单号", "出库日期", "货号", "颜色", "单位", "尺码", "数量", "单价", "金额"]
         table_data = [headers] + statement_data['orders']
+
+        # 添加总计行
+        total_amount = statement_data['total_amount']
+        # 转换金额为大写
+        def convert_to_chinese(amount):
+            digits = ['零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖']
+            units = ['', '拾', '佰', '仟', '万', '拾', '佰', '仟', '亿']
+            decimal_units = ['角', '分']
+            amount_str = f"{amount:.2f}"
+            integer_part, decimal_part = amount_str.split('.')
+            integer_part = integer_part.lstrip('0') or '0'
+            chinese_str = ''
+
+            # 处理整数部分
+            for i, digit in enumerate(integer_part):
+                position = len(integer_part) - i - 1
+                chinese_digit = digits[int(digit)]
+                unit = units[position % 8]
+                if position >= 8:
+                    unit += '亿'
+                elif position >= 4:
+                    unit += '万'
+                chinese_str += chinese_digit + unit
+
+            # 处理小数部分
+            decimal_str = ''
+            if decimal_part != '00':
+                for i, digit in enumerate(decimal_part):
+                    if digit != '0':
+                        decimal_str += digits[int(digit)] + decimal_units[i]
+                    else:
+                        if i == 0 and decimal_part[1] != '0':
+                            decimal_str += '零'
+            else:
+                decimal_str = '整'
+
+            return f"{chinese_str}元{decimal_str}"
+
+        chinese_total = convert_to_chinese(total_amount)
+        # 添加总计行（合并所有列）
+        table_data.append([f"总计: {total_amount:.2f} （大写：{chinese_total}）"] + [''] * 8)
+
         table = Table(table_data)
         table.setStyle(TableStyle([
             ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('ALIGN', (0, 0), (-1, -2), 'CENTER'),  # 除最后一行外居中对齐
             ('FONTNAME', (0, 0), (-1, 0), font_name),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
             ('GRID', (0, 0), (-1, -1), 1, colors.black),
             ('FONTNAME', (0, 1), (-1, -1), font_name),
-            ('ALIGN', (7, 1), (8, -1), 'RIGHT'),  # 单价和金额靠右对齐
+            ('ALIGN', (7, 1), (8, -2), 'RIGHT'),  # 单价和金额靠右对齐
+            # 设置总计行样式
+            ('ALIGN', (0, -1), (-1, -1), 'LEFT'),  # 总计行左对齐
+            ('FONTNAME', (0, -1), (-1, -1), font_name),
+            ('FONTSIZE', (0, -1), (-1, -1), 11),
+            ('BOTTOMPADDING', (0, -1), (-1, -1), 5),
+            # 合并总计行所有单元格
+            ('SPAN', (0, -1), (-1, -1)),
         ]))
         elements.append(table)
         elements.append(Spacer(1, 12))
-
-        # 总计金额行
-        total_amount = statement_data['total_amount']
-        upper_total = statement_data['upper_total']
-        total_info = [
-            [f"应付总金额: {total_amount:.2f}"],
-            [f"大写: {upper_total}"]
-        ]
-        total_info_table = Table(total_info, colWidths=[300])
-        total_info_table.setStyle(TableStyle([
-            ('FONTNAME', (0, 0), (-1, -1), font_name),
-            ('FONTSIZE', (0, 0), (0, 0), 12),
-            ('FONTSIZE', (0, 1), (0, 1), 10),
-            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
-            ('BOLDFONT', (0, 0), (0, 0), 1),
-        ]))
-        elements.append(total_info_table)
 
         # 生成PDF
         return PDFUtil.create_pdf(file_path, elements)
