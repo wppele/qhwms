@@ -473,8 +473,9 @@ def OutboundDialog(parent, cart_list, customer_name=None):
 
     def on_submit():
         # 1. 检测客户姓名
-        if not customer_var.get():
-            messagebox.showwarning("提示", "请选择客户！")
+        customer_name = customer_var.get().strip()
+        if not customer_name:
+            messagebox.showwarning("提示", "客户姓名不能为空或仅包含空白字符！")
             return
         
         # 2. 检查每行商品数量和单价不能为0，且库存是否充足
