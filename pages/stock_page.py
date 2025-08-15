@@ -236,6 +236,7 @@ def StockPage(parent, main_win):
                     in_quantity
                 )
                 tk.messagebox.showinfo("成功", "修改成功！")
+                dialog.destroy()  # 关闭对话框
             else:
                 dbutil.insert_stock(
                     factory,
@@ -322,21 +323,66 @@ def StockPage(parent, main_win):
     ttk.Label(search_frame, text="货号:").pack(side=tk.LEFT)
     search_product_no = tk.StringVar()
     ttk.Entry(search_frame, textvariable=search_product_no, width=10).pack(side=tk.LEFT, padx=3)
+    
+    # 添加日期选择条件框
+    ttk.Label(search_frame, text="日期:").pack(side=tk.LEFT)
+    search_date = tk.StringVar()
+    try:
+        from tkcalendar import DateEntry
+        has_tkcalendar = True
+    except ImportError:
+        has_tkcalendar = False
+    
+    # 清空日期函数
+    def clear_date():
+        search_date.set("")
+        if has_tkcalendar:
+            date_entry.delete(0, tk.END)
+    
+    if has_tkcalendar:
+        date_entry = DateEntry(search_frame, textvariable=search_date, width=10, date_pattern='yyyy-mm-dd')
+        date_entry.pack(side=tk.LEFT, padx=3)
+        date_entry.delete(0, tk.END)  # 清空默认日期
+        ttk.Button(search_frame, text="清空", command=clear_date, width=4).pack(side=tk.LEFT, padx=1)
+    else:
+        ttk.Entry(search_frame, textvariable=search_date, width=12).pack(side=tk.LEFT, padx=3)
+        ttk.Label(search_frame, text="(格式: yyyy-mm-dd)", font=('Arial', 8)).pack(side=tk.LEFT)
+        ttk.Button(search_frame, text="清空", command=clear_date, width=4).pack(side=tk.LEFT, padx=1)
     ttk.Label(search_frame, text="是否结账:").pack(side=tk.LEFT)
     search_settled = tk.StringVar(value="全部")
     ttk.Combobox(search_frame, textvariable=search_settled, values=["全部", "是", "否"], width=5, state="readonly").pack(side=tk.LEFT, padx=3)
     def do_search():
         factory = search_factory.get().strip()
         product_no = search_product_no.get().strip()
+        search_date_str = search_date.get().strip()
         settled = search_settled.get()
         results = []
+        
+        import datetime
+        search_date_obj = None
+        if search_date_str:
+            try:
+                search_date_obj = datetime.datetime.strptime(search_date_str, "%Y-%m-%d").date()
+            except ValueError:
+                pass
+        
         for row in dbutil.get_all_stock():
             # id, factory, product_no, size, color,unit, in_quantity, price, total, is_settled, in_date
-            _, f, p, _, _, _, _, _, _, s, _ = row
+            _, f, p, _, _, _, _, _, _, s, in_date = row
             if factory and factory not in f:
                 continue
             if product_no and product_no not in p:
                 continue
+            
+            # 日期过滤
+            if search_date_obj:
+                try:
+                    row_date = datetime.datetime.strptime(in_date, "%Y-%m-%d").date()
+                    if row_date != search_date_obj:
+                        continue
+                except ValueError:
+                    continue
+            
             if settled != "全部":
                 if (settled == "是" and not s) or (settled == "否" and s):
                     continue
@@ -493,7 +539,6 @@ def StockPage(parent, main_win):
         dialog = tk.Toplevel(main_win)
         dialog.title("新增库存")
         dialog.transient(main_win)
-        dialog.grab_set()
         center_window(dialog, 330, 200)
         fields = [
             ("厂家", "factory"),
@@ -594,6 +639,7 @@ def StockPage(parent, main_win):
                         product_no,
                         size,
                         color,
+                        unit,
                         in_quantity,
                         price,
                         total,
@@ -609,6 +655,7 @@ def StockPage(parent, main_win):
                         in_quantity
                     )
                     tk.messagebox.showinfo("成功", "修改成功！")
+                    dialog.destroy()  # 关闭对话框
                 else:
                     dbutil.insert_stock(
                         factory,
@@ -687,7 +734,10 @@ def StockPage(parent, main_win):
         def update_total(vars):
             vars["total"].set(utils.calculate_total(vars["in_quantity"].get(), vars["price"].get()))
         dialog.bind('<Return>', lambda event: handle_stock_submit(False))
-        error_label = tk.Label(dialog, text="", fg="red", font=("微软雅黑", 10))
+        # 创建样式来设置错误标签的前景色
+        style = ttk.Style()
+        style.configure("Error.TLabel", foreground="red")
+        error_label = ttk.Label(dialog, text="", style="Error.TLabel", font=("微软雅黑", 10))
         error_label.pack(pady=(0, 5), padx=10, anchor=tk.W)
         dialog.after(100, lambda: entry_refs['factory'].focus_set())
         dialog.wait_window()
@@ -871,7 +921,7 @@ def StockPage(parent, main_win):
         vars['in_quantity'].trace_add('write', update_total)
         vars['price'].trace_add('write', update_total)
         dialog.bind('<Return>', lambda event: handle_stock_submit(vars, entry_refs, error_label, dialog, True, stock_id))
-        error_label = tk.Label(dialog, text="", fg="red", font=("微软雅黑", 10))
+        error_label = ttk.Label(dialog, text="", style="Error.TLabel", font=("微软雅黑", 10))
         error_label.pack(pady=(0, 5), padx=10, anchor=tk.W)
         dialog.after(100, lambda: entry_refs['factory'].focus_set())
         # 修正字段赋值顺序，确保各字段对应正确的 values 索引
