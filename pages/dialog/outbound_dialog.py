@@ -387,8 +387,11 @@ def OutboundDialog(parent, cart_list, customer_name=None):
                             next_item = children[current_index + 1]
                             # 保存当前项的更改
                             save_and_next()
+                            # 选择下一项
+                            tree.selection_set(next_item)
+                            tree.see(next_item)
                             # 延迟编辑下一项的第一个可编辑列
-                            tree.after(10, lambda: edit_entry_by_col(next_item, editable_cols[0]))
+                            tree.after(10, lambda item=next_item: edit_entry_by_col(item, editable_cols[0]))
                         else:
                             # 没有下一项，保存当前项的更改
                             save_and_next()
