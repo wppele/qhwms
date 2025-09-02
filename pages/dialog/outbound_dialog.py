@@ -498,7 +498,11 @@ def OutboundDialog(parent, cart_list, customer_name=None):
                 messagebox.showerror("错误", f"货号:{product_no} 颜色:{color} 尺码:{size} 单价不能为0！")
                 return
             
-            inv = dbutil.get_inventory_by_id(product_id)
+            # 通过product_no, color, size获取正确的inventory_id
+            inv = dbutil.get_inventory_by_id_by_fields(product_no, color, size)
+            if not inv:
+                messagebox.showerror("错误", f"货号:{product_no} 颜色:{color} 尺码:{size} 未找到对应库存！")
+                return
             stock_qty = inv[-1] if inv else 0
             if quantity > stock_qty:
                 messagebox.showerror("库存不足", f"货号:{product_no} 颜色:{color} 尺码:{size} 库存仅剩{stock_qty}，无法出库{quantity}件！")
@@ -550,8 +554,15 @@ def OutboundDialog(parent, cart_list, customer_name=None):
                 item_id = dbutil.insert_outbound_item(
                     outbound_id, product_id, quantity, price, amount
                 )
-                dbutil.update_inventory_size_by_id(product_id, size)
-                dbutil.decrease_inventory_by_id(product_id, quantity)
+                # 使用正确的inventory_id更新库存
+                inv = dbutil.get_inventory_by_id_by_fields(vals[2], vals[3], size)  # product_no, color, size
+                if inv:
+                    inventory_id = inv[0]
+                    dbutil.update_inventory_size_by_id(inventory_id, size)
+                    dbutil.decrease_inventory_by_id(inventory_id, quantity)
+                else:
+                    messagebox.showerror("错误", f"货号:{vals[2]} 颜色:{vals[3]} 尺码:{vals[3]} 未找到对应库存，无法出库！")
+                    return
                 item_ids.append(str(item_id))
         
             # 6. 收集所有item_ids
