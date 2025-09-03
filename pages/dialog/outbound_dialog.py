@@ -42,7 +42,19 @@ def OutboundDialog(parent, cart_list, customer_name=None):
     if customer_name:
         customer_combo.set(customer_name)
     
+    # 添加计时器变量
+    customer_combo.timer_id = None
+    
     def on_customer_input(event):
+        # 取消之前的计时器
+        if customer_combo.timer_id:
+            customer_combo.after_cancel(customer_combo.timer_id)
+            customer_combo.timer_id = None
+        
+        # 设置3秒延迟
+        customer_combo.timer_id = customer_combo.after(3000, show_filtered_results)
+    
+    def show_filtered_results():
         value = customer_var.get()
         value = value.strip().lower()
         if value == '':
@@ -52,6 +64,7 @@ def OutboundDialog(parent, cart_list, customer_name=None):
         customer_combo['values'] = filtered if filtered else customer_names
         if filtered:
             customer_combo.event_generate('<Down>')
+    
     customer_combo.bind('<KeyRelease>', on_customer_input)
     
     def show_history():

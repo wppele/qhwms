@@ -113,7 +113,19 @@ def OutboundPage(parent):
     customer_combo = ttk.Combobox(top_row, textvariable=customer_var, values=customer_names, width=14, state="normal")
     customer_combo.pack(side=tk.LEFT, padx=4)
     
+    # 添加计时器变量
+    customer_combo.timer_id = None
+    
     def on_customer_input(event):
+        # 取消之前的计时器
+        if customer_combo.timer_id:
+            customer_combo.after_cancel(customer_combo.timer_id)
+            customer_combo.timer_id = None
+        
+        # 设置3秒延迟
+        customer_combo.timer_id = customer_combo.after(3000, show_filtered_results)
+    
+    def show_filtered_results():
         value = customer_var.get()
         value = value.strip().lower()
         if value == '':
@@ -123,6 +135,7 @@ def OutboundPage(parent):
         customer_combo['values'] = filtered if filtered else customer_names
         if filtered:
             customer_combo.event_generate('<Down>')
+    
     customer_combo.bind('<KeyRelease>', on_customer_input)
     
     def show_history():
