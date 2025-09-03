@@ -60,6 +60,28 @@ def delete_draft_order(draft_id):
     cursor.execute("DELETE FROM draft_order WHERE draft_id=?", (draft_id,))
     commit_and_close(conn)
 
+def update_draft_order(draft_id, customer_id, total_amount, remark):
+    """更新暂存出库单主表记录（draft_order）"""
+    conn, cursor = get_db_conn()
+    cursor.execute("""
+        UPDATE draft_order 
+        SET customer_id=?, total_amount=?, remark=? 
+        WHERE draft_id=?
+    """, (customer_id, total_amount, remark, draft_id))
+    commit_and_close(conn)
+
+def delete_draft_item(item_id):
+    """根据item_id删除暂存单明细项（draft_item）"""
+    conn, cursor = get_db_conn()
+    cursor.execute("DELETE FROM draft_item WHERE item_id=?", (item_id,))
+    commit_and_close(conn)
+
+def delete_draft_items_by_draft_id(draft_id):
+    """根据draft_id删除所有相关的暂存单项（draft_item）"""
+    conn, cursor = get_db_conn()
+    cursor.execute("DELETE FROM draft_item WHERE draft_id=?", (draft_id,))
+    commit_and_close(conn)
+
 # ========== outbound_order & outbound_item ==========
 # 建表见 init_db()
 def insert_outbound_order(order_no, customer_id, total_amount, pay_status, total_paid, total_debt, create_time, remark):
@@ -89,6 +111,31 @@ def get_all_outbound_orders():
     rows = cursor.fetchall()
     conn.close()
     return rows
+
+def get_max_order_seq_for_date(date_prefix):
+    """获取指定日期前缀的最大订单序号
+    :param date_prefix: 日期前缀，格式为'QHYYYYMMDD'
+    :return: 最大序号，如果没有匹配的订单则返回0
+    """
+    conn, cursor = get_db_conn()
+    # 查询以指定前缀开头的所有订单号
+    cursor.execute("SELECT order_no FROM outbound_order WHERE order_no LIKE ?", (f"{date_prefix}%",))
+    rows = cursor.fetchall()
+    conn.close()
+    
+    max_seq = 0
+    for row in rows:
+        order_no = row[0]
+        try:
+            # 提取序号部分（从第11位开始）
+            seq = int(order_no[10:])
+            if seq > max_seq:
+                max_seq = seq
+        except (ValueError, IndexError):
+            # 如果序号部分不是数字或索引越界，跳过该订单号
+            continue
+    
+    return max_seq
 def get_outbound_items_by_order(outbound_id):
     """获取指定出库单的所有明细（outbound_item）"""
     conn, cursor = get_db_conn()

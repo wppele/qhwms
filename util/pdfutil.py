@@ -83,15 +83,7 @@ class PDFUtil:
 
         # 选择保存路径
         if not file_path:
-            # 创建一个临时的顶级窗口作为对话框的父窗口
-            if not parent:
-                parent = tk.Toplevel()
-                parent.withdraw()  # 隐藏窗口
-            else:
-                # 确保父窗口是顶级窗口
-                while parent.master:
-                    parent = parent.master
-
+            # 使用传入的父窗口，如果没有则不设置parent参数
             file_path = filedialog.asksaveasfilename(
                 initialfile=f'{order.get("order_no", "订单")}.pdf',
                 defaultextension='.pdf',
@@ -262,37 +254,18 @@ class PDFUtil:
 
         # 选择保存路径
         if not file_path:
-            # 创建一个临时的顶级窗口作为对话框的父窗口
-            if not parent:
-                parent = tk.Toplevel()
-                parent.withdraw()  # 隐藏窗口
-            else:
-                # 确保父窗口是顶级窗口
-                while parent.master:
-                    parent = parent.master
-
-            # 保存原始topmost状态
-            original_topmost = parent.attributes('-topmost') if hasattr(parent, 'attributes') else False
-            try:
-                # 临时将父窗口的topmost设置为False，以便文件对话框能显示在顶层
-                parent.attributes('-topmost', False)
-
-                # 获取对账单号作为默认文件名
-                statement_no = statement_data.get('statement_no', '未命名对账单')
-                default_filename = f"对账单_{statement_no}.pdf"
-
-                file_path = filedialog.asksaveasfilename(
-                    defaultextension=".pdf",
-                    filetypes=[("PDF files", "*.pdf")],
-                    title="导出对账单",
-                    parent=parent,
-                    initialfile=default_filename  # 设置默认文件名
-                )
-            finally:
-                # 恢复父窗口的原始topmost状态
-                if hasattr(parent, 'attributes'):
-                    parent.attributes('-topmost', original_topmost)
-
+            # 使用传入的父窗口，如果没有则不设置parent参数
+            statement_no = statement_data.get('statement_no', '未命名对账单')
+            default_filename = f"对账单_{statement_no}.pdf"
+            
+            file_path = filedialog.asksaveasfilename(
+                defaultextension=".pdf",
+                filetypes=[("PDF files", "*.pdf")],
+                title="导出对账单",
+                parent=parent,
+                initialfile=default_filename  # 设置默认文件名
+            )
+            
             if not file_path:
                 return False
 

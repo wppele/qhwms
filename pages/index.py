@@ -12,6 +12,7 @@ from pages.welcome_page import WelcomeFrame
 from pages.payment_record_page import PaymentRecordPage
 from pages.arrears_settle_page import ArrearsSettlePage
 from pages.customer_statement_page import CustomerStatementPage
+from pages.outbound_page import OutboundPage
 from util.dbutil import get_user_unipassword_by_username
 
 def show_main_page(username, root=None):
@@ -61,7 +62,8 @@ def show_main_page(username, root=None):
 
     # 销售管理为一级菜单，包含销售开单、出库单管理、销售退换货、收款结算
     sale_id = nav_tree.insert('', 'end', text='销售管理', open=False)
-    nav_tree.insert(sale_id, 'end', text='开单|库存', iid='inventory')
+    nav_tree.insert(sale_id, 'end', text='制作出库单', iid='outbound')
+    nav_tree.insert(sale_id, 'end', text='库存', iid='inventory')
     nav_tree.insert(sale_id, 'end', text='出库单管理', iid='outbound_manage')
     nav_tree.insert(sale_id, 'end', text='付款记录查询', iid='payment_record_query')
     nav_tree.insert(sale_id, 'end', text='销售退货', iid='sale_return')
@@ -106,7 +108,8 @@ def show_main_page(username, root=None):
         'payment_record': (PaymentRecordPage, (content_frame,)),
         'arrears_settle': (ArrearsSettlePage, (content_frame,)),
         'customer_statement': (CustomerStatementPage, (content_frame,)),
-        'sale_return': (SaleReturnPage, (content_frame,))
+        'sale_return': (SaleReturnPage, (content_frame,)),
+        'outbound': (OutboundPage, (content_frame,))
     }
 
     # 页面切换逻辑
@@ -165,6 +168,8 @@ def show_main_page(username, root=None):
             show_page('stock_log')
         elif sel == 'inventory':  # 销售开单
             show_page('inventory')
+        elif sel == 'outbound':  # 制作出库单
+            show_page('outbound')
         elif sel == 'customer_info':
             # 检查当前用户的unipassword
             from util.dbutil import get_user_unipassword_by_username

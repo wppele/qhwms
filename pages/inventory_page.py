@@ -69,13 +69,14 @@ def InventoryPage(parent):
             customer_name = customer_names[idx]
             # 获取明细（从 draft_item 表获取）
             items = dbutil.get_draft_items_by_order(draft[0])
-            cart_list = []
+            # 将draft_id添加到cart_list中，以便在outbound_dialog中可以正确删除暂存单
+            cart_list = {'draft_id': draft[0], 'items': []}
             for item in items:
                 inv = dbutil.get_inventory_by_id(item[2])
-                cart_list.append((inv, item[3], item[4]))
+                cart_list['items'].append((inv, item[3], item[4]))
             win.destroy()
             # 进入出库单时自动带出客户姓名
-            # 直接传递客户姓名给弹窗
+            # 直接传递客户姓名和draft_id给弹窗
             OutboundDialog(frame, cart_list, customer_name)
         tree.bind('<Double-1>', on_double_click)
 

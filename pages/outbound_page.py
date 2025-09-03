@@ -1,29 +1,104 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from util import dbutil
+from pages.dialog.search_dialog import ProductSearchDialog
 import datetime
 
 # 存储上次选择的商品
 last_selected_product = ''
 
-def OutboundDialog(parent, cart_list, customer_name=None):
-    dialog = tk.Toplevel(parent)
-    dialog.title("出库单")
-    w, h = 950, 600
-    sw = dialog.winfo_screenwidth()
-    sh = dialog.winfo_screenheight()
-    x = (sw - w) // 2
-    y = (sh - h) // 2
-    dialog.geometry(f"{w}x{h}+{x}+{y}")
-    dialog.transient(parent)
-    dialog.grab_set()
-    now = datetime.datetime.now()
-    
+def OutboundPage(parent):
+    frame = ttk.Frame(parent)
     # 顶部标题
-    tk.Label(dialog, text="千辉鞋业出库单", font=("微软雅黑", 16, "bold"), fg="#2a5d2a").pack(pady=(18, 8))
+    title_frame = ttk.Frame(frame)
+    title_frame.pack(fill=tk.X, padx=30, pady=(18, 8))
+    
+    tk.Label(title_frame, text="千辉鞋业出库单", font=("微软雅黑", 16, "bold"), fg="#2a5d2a").pack(side=tk.LEFT)
+    
+    # 添加暂存单按钮到右上角
+    def show_draft_list():
+        try:
+            from pages.dialog.outbound_dialog import OutboundDialog
+        except ImportError:
+            tk.messagebox.showerror("错误", "未找到出库单页面模块！")
+            return
+        # 查询所有暂存出库单（从 draft_order 表获取）
+        drafts = dbutil.get_all_draft_orders()  # [(id, customer_id, total, remark, create_time)]
+        win = tk.Toplevel(frame)
+        win.title("暂存出库单列表")
+        win.geometry("900x400")
+        columns = ("draft_id", "customer", "total", "create_time")
+        tree = ttk.Treeview(win, columns=columns, show="headings", height=12)
+        tree.pack(fill=tk.BOTH, expand=True, padx=16, pady=8)
+        tree.heading("draft_id", text="暂存单ID")
+        tree.heading("customer", text="客户")
+        tree.heading("total", text="金额")
+        tree.heading("create_time", text="创建时间")
+        customer_names = []
+        for o in drafts:
+            customer_name = ''
+            try:
+                customer = dbutil.get_customer_by_id(o[1])
+                customer_name = customer[1] if customer else ''
+            except Exception:
+                pass
+            customer_names.append(customer_name)
+            tree.insert('', tk.END, values=(o[0], customer_name, f"{o[2]:.2f}", o[4]))
+        def on_double_click(event):
+            sel = tree.selection()
+            if not sel:
+                return
+            idx = tree.index(sel[0])
+            draft = drafts[idx]
+            customer_name = customer_names[idx]
+            # 获取明细（从 draft_item 表获取）
+            items = dbutil.get_draft_items_by_order(draft[0])
+            # 将draft_id添加到cart_list中，以便在outbound_dialog中可以正确删除暂存单
+            cart_list = {'draft_id': draft[0], 'items': []}
+            for item in items:
+                inv = dbutil.get_inventory_by_id(item[2])
+                cart_list['items'].append((inv, item[3], item[4]))
+            win.destroy()
+            # 进入出库单时自动带出客户姓名
+            # 直接传递客户姓名和draft_id给弹窗
+            OutboundDialog(frame, cart_list, customer_name)
+        tree.bind('<Double-1>', on_double_click)
+
+        # 鼠标悬停时显示"双击编辑"提示
+        def on_motion(event):
+            tree_tooltip = getattr(tree, '_tooltip', None)
+            region = tree.identify('region', event.x, event.y)
+            if region == 'cell':
+                if not tree_tooltip:
+                    tree._tooltip = tk.Label(win, text="双击编辑", bg="#ffffe0", fg="#333", font=("微软雅黑", 10), relief=tk.SOLID, bd=1)
+                tooltip = tree._tooltip
+                tooltip.place(x=event.x_root - win.winfo_rootx() + 10, y=event.y_root - win.winfo_rooty() + 10)
+            else:
+                if tree_tooltip:
+                    tree_tooltip.place_forget()
+        tree.bind('<Motion>', on_motion)
+
+        def delete_selected_draft():
+            sel = tree.selection()
+            if not sel:
+                messagebox.showinfo("提示", "请先选择要删除的暂存单！")
+                return
+            idx = tree.index(sel[0])
+            draft = drafts[idx]
+            draft_id = draft[0]
+            dbutil.delete_draft_order(draft_id)
+            tree.delete(sel[0])
+            messagebox.showinfo("删除成功", "暂存单已删除！")
+
+        btn_frame = ttk.Frame(win)
+        btn_frame.pack(pady=8)
+        ttk.Button(btn_frame, text="删除选中暂存单", command=delete_selected_draft).pack(side=tk.LEFT, padx=8)
+        ttk.Button(btn_frame, text="关闭", command=win.destroy).pack(side=tk.LEFT, padx=8)
+    
+    ttk.Button(title_frame, text="暂存单", command=show_draft_list).pack(side=tk.RIGHT)
     
     # 订单号、客户、出库日期一行显示
-    top_row = ttk.Frame(dialog)
+    top_row = ttk.Frame(frame)
     top_row.pack(fill=tk.X, padx=30, pady=2)
     
     ttk.Label(top_row, text="订单号:", font=("微软雅黑", 11)).pack(side=tk.LEFT)
@@ -35,12 +110,8 @@ def OutboundDialog(parent, cart_list, customer_name=None):
     customers = dbutil.get_all_customers()
     customer_names = [c[1] for c in customers]
     customer_var = tk.StringVar()
-    if customer_name:
-        customer_var.set(customer_name)
     customer_combo = ttk.Combobox(top_row, textvariable=customer_var, values=customer_names, width=14, state="normal")
     customer_combo.pack(side=tk.LEFT, padx=4)
-    if customer_name:
-        customer_combo.set(customer_name)
     
     def on_customer_input(event):
         value = customer_var.get()
@@ -62,7 +133,7 @@ def OutboundDialog(parent, cart_list, customer_name=None):
             return
         cid = cust[0]
         orders = [o for o in dbutil.get_all_outbound_orders() if o[2] == cid]
-        win = tk.Toplevel(dialog)
+        win = tk.Toplevel(frame)
         win.title(f"{name} 历史订单")
         win.geometry("1100x500")
         ttk.Label(win, text=f"客户：{name}  共{len(orders)}单", font=("微软雅黑", 12, "bold")).pack(pady=8)
@@ -124,6 +195,7 @@ def OutboundDialog(parent, cart_list, customer_name=None):
     ttk.Button(top_row, text="历史订单", command=show_history).pack(side=tk.LEFT, padx=(8,0))
     
     ttk.Label(top_row, text="出库日期:", font=("微软雅黑", 11)).pack(side=tk.LEFT, padx=(12,0))
+    now = datetime.datetime.now()
     date_var = tk.StringVar(value=now.strftime('%Y-%m-%d'))
     ttk.Entry(top_row, textvariable=date_var, width=12, state='readonly').pack(side=tk.LEFT, padx=4)
     
@@ -139,7 +211,7 @@ def OutboundDialog(parent, cart_list, customer_name=None):
         ("amount", "金额"),          # 6
     ]
     # 创建一个框架来放置 Treeview 和滚动条
-    tree_frame = ttk.Frame(dialog)
+    tree_frame = ttk.Frame(frame)
     tree_frame.pack(fill=tk.BOTH, expand=True, padx=30, pady=12)
 
     # 创建垂直滚动条
@@ -158,31 +230,9 @@ def OutboundDialog(parent, cart_list, customer_name=None):
     # 隐藏 product_id 列
     tree['displaycolumns'] = [col for col, _ in headers]
     
-    # 填充表格，cart_list: {'draft_id': id, 'items': [(inv_row, qty, price)]}，inv_row[0]=product_id
-    if cart_list:
-        items = cart_list.get('items', []) if isinstance(cart_list, dict) else cart_list
-        for v, qty, price in items:
-            inv = dbutil.get_inventory_by_id(v[0])
-            product_no = inv[2] if inv else ''      # 0
-            color = inv[4] if inv else ''           # 1
-            unit = inv[5] if inv else ''            # 2
-            size = inv[3] if inv else ''            # 3
-            amount = qty * price                    # 6
-            # values顺序严格对应columns
-            tree.insert("", tk.END, values=(product_no, color, unit, size, qty, price, f"{amount:.2f}", v[0]))
-
     # 添加商品和删除商品按钮
     def add_item_row():
         # 打开商品搜索对话框
-        from pages.dialog.search_dialog import ProductSearchDialog
-        # 使用nonlocal关键字引用外部函数的dialog变量
-        nonlocal dialog
-        
-        # 检查是否已有搜索对话框实例，如果有则显示它
-        if hasattr(dialog, 'search_dialog') and dialog.search_dialog.winfo_exists():
-            dialog.search_dialog.deiconify()
-            return
-        
         def on_product_selected(event=None):
             product = search_dialog.get_selected_product()
             if product:
@@ -202,10 +252,8 @@ def OutboundDialog(parent, cart_list, customer_name=None):
                 # 更新上次选择的商品
                 global last_selected_product
                 last_selected_product = f"{product['product_no']}-{product['unit']}-{product['color']}"
-            
-        search_dialog = ProductSearchDialog(dialog)
-        # 保存对话框实例
-        dialog.search_dialog = search_dialog
+        
+        search_dialog = ProductSearchDialog(frame)
         search_dialog.bind('<<ProductSelected>>', on_product_selected)
         # 显示对话框
         search_dialog.deiconify()
@@ -217,13 +265,13 @@ def OutboundDialog(parent, cart_list, customer_name=None):
             tree.delete(item)
         calc_total()
 
-    op_btn_frame = ttk.Frame(dialog)
+    op_btn_frame = ttk.Frame(frame)
     op_btn_frame.pack(fill=tk.X, padx=30, pady=2)
     ttk.Button(op_btn_frame, text="添加商品", command=add_item_row).pack(side=tk.LEFT)
     ttk.Button(op_btn_frame, text="删除选中", command=delete_selected_row).pack(side=tk.LEFT, padx=8)
     
     # 合计金额、支付金额和余款金额
-    bottom_frame = ttk.Frame(dialog)
+    bottom_frame = ttk.Frame(frame)
     bottom_frame.pack(fill=tk.X, padx=30, pady=8)
 
     # 合计金额
@@ -297,15 +345,6 @@ def OutboundDialog(parent, cart_list, customer_name=None):
         
         if col == '#1':
             # 打开商品搜索对话框
-            from pages.dialog.search_dialog import ProductSearchDialog
-            # 使用nonlocal关键字引用外部函数的dialog变量
-            nonlocal dialog
-            
-            # 检查是否已有搜索对话框实例，如果有则显示它
-            if hasattr(dialog, 'search_dialog') and dialog.search_dialog.winfo_exists():
-                dialog.search_dialog.deiconify()
-                return
-            
             def on_product_selected(event=None):
                 product = search_dialog.get_selected_product()
                 if product:
@@ -322,9 +361,7 @@ def OutboundDialog(parent, cart_list, customer_name=None):
                     global last_selected_product
                     last_selected_product = f"{product['product_no']}-{product['unit']}-{product['color']}"
             
-            search_dialog = ProductSearchDialog(dialog)
-            # 保存对话框实例
-            dialog.search_dialog = search_dialog
+            search_dialog = ProductSearchDialog(frame)
             search_dialog.bind('<<ProductSelected>>', on_product_selected)
             # 显示对话框
             search_dialog.deiconify()
@@ -464,7 +501,7 @@ def OutboundDialog(parent, cart_list, customer_name=None):
     calc_total()
     
     # 备注区域
-    remark_frame = ttk.Frame(dialog)
+    remark_frame = ttk.Frame(frame)
     remark_frame.pack(fill=tk.X, padx=30, pady=8)
     ttk.Label(remark_frame, text="订单备注:", font=('微软雅黑', 11)).pack(side=tk.LEFT)
     remark_var = tk.StringVar(value="")
@@ -472,7 +509,7 @@ def OutboundDialog(parent, cart_list, customer_name=None):
     remark_entry.pack(side=tk.LEFT, padx=6, fill=tk.X, expand=True)
 
     # 底部按钮
-    btn_frame = ttk.Frame(dialog)
+    btn_frame = ttk.Frame(frame)
     btn_frame.pack(pady=18)
 
     def on_submit():
@@ -585,22 +622,100 @@ def OutboundDialog(parent, cart_list, customer_name=None):
         # 5. 提示是否输出为PDF
         if messagebox.askyesno("出库单已保存", "是否输出为PDF？"):
             try:
-                from pages.dialog.outbound_detail_dialog import show_outbound_detail
-                show_outbound_detail(None, order_no)
+                from tkinter import filedialog
+                from util.pdfutil import PDFUtil
+                
+                # 弹出文件路径选择对话框
+                file_path = filedialog.asksaveasfilename(
+                    initialfile=f'{order_no}.pdf',
+                    defaultextension='.pdf',
+                    filetypes=[('PDF 文件', '*.pdf')],
+                    title='选择保存路径'
+                )
+                
+                if file_path:
+                    # 准备订单详情数据
+                    order_data = {
+                        'order_no': order_no,
+                        'customer_id': customer_id,
+                        'outbound_date': now_str,
+                        'total_paid': float(total_paid_var.get()),
+                        'total_debt': float(total_debt_var.get()),
+                        'remark': remark_var.get()
+                    }
+                    
+                    # 准备产品明细数据
+                    product_data = []
+                    for idx, item in enumerate(tree.get_children(), 1):
+                        vals = tree.item(item)['values']
+                        product_no = vals[0]
+                        color = vals[1]
+                        unit = vals[2]
+                        size = vals[3]
+                        quantity = int(vals[4]) if vals[4] else 0
+                        price = float(vals[5]) if vals[5] else 0.0
+                        amount = float(vals[6]) if vals[6] else 0.0
+                        
+                        product_data.append({
+                            'idx': idx,
+                            'product_no': product_no,
+                            'color': color,
+                            'unit': unit,
+                            'size': size,
+                            'quantity': quantity,
+                            'price': price,
+                            'amount': amount,
+                            'remark': ''
+                        })
+                    
+                    # 获取客户信息
+                    customer_info = None
+                    for c in customers:
+                        if c[0] == customer_id:
+                            customer_info = c
+                            break
+                    
+                    # 生成库房出库单PDF
+                    order_data['show_kufang'] = True
+                    kufang_file_path = file_path.replace('.pdf', '_库房.pdf')
+                    PDFUtil.create_order_detail_pdf(order_data, product_data, customer_info, kufang_file_path)
+                    
+                    # 生成非库房出库单PDF
+                    order_data['show_kufang'] = False
+                    feikufang_file_path = file_path.replace('.pdf', '_非库房.pdf')
+                    PDFUtil.create_order_detail_pdf(order_data, product_data, customer_info, feikufang_file_path)
+                    
+                    # 显示导出成功提示，2秒后自动消失
+                    success_msg = tk.Toplevel()
+                    success_msg.title("提示")
+                    success_msg.geometry("200x80")
+                    success_msg.resizable(False, False)
+                    
+                    # 使用utils.center_window方法居中显示
+                    from util.utils import center_window
+                    center_window(success_msg, 200, 80)
+                    
+                    label = tk.Label(success_msg, text="导出成功", font=("微软雅黑", 12))
+                    label.pack(expand=True)
+                    
+                    # 2秒后自动关闭
+                    success_msg.after(2000, success_msg.destroy)
             except Exception as e:
-                messagebox.showerror("错误", f"打开出库单详情失败：{e}")
+                messagebox.showerror("错误", f"导出PDF失败：{e}")
+        else:
+            # 用户选择不导出PDF，但仍需显示成功消息
+            messagebox.showinfo("成功", "出库单已保存！")
         
-        # 自动删除暂存单（如有）
-        # 通过传递的cart_list中的draft_id直接删除对应的暂存单
-        if cart_list and 'draft_id' in cart_list:
-            try:
-                dbutil.delete_draft_order(cart_list['draft_id'])
-            except Exception as e:
-                print(f"删除暂存单失败: {e}")
-        
-        if hasattr(parent, 'refresh') and callable(parent.refresh):
-            parent.refresh()
-        dialog.destroy()
+        # 无论是否导出PDF，都需要清空表单
+        order_no_var.set("")  # 重置订单号
+        customer_var.set("")
+        remark_var.set("")
+        total_paid_var.set("0.00")
+        total_debt_var.set("0.00")
+        pay_method_var.set(payment_methods[0])
+        for item in tree.get_children():
+            tree.delete(item)
+        calc_total()
 
     def on_save_draft():
         # 检查客户
@@ -622,17 +737,8 @@ def OutboundDialog(parent, cart_list, customer_name=None):
             
             # 获取备注内容
             remark = remark_var.get()
+            draft_id = dbutil.insert_draft_order(customer_id, total, remark, now_str)
             
-            # 检查是否已存在draft_id，如果存在则更新，否则插入新记录
-            if cart_list and 'draft_id' in cart_list:
-                draft_id = cart_list['draft_id']
-                dbutil.update_draft_order(draft_id, customer_id, total, remark)
-                # 删除原有的暂存单项
-                dbutil.delete_draft_items_by_draft_id(draft_id)
-            else:
-                draft_id = dbutil.insert_draft_order(customer_id, total, remark, now_str)
-            
-            # 插入新的暂存单项
             for item in tree.get_children():
                 vals = tree.item(item)['values']
                 product_id = vals[7]  # product_id
@@ -642,7 +748,16 @@ def OutboundDialog(parent, cart_list, customer_name=None):
                 dbutil.insert_draft_item(draft_id, product_id, quantity, price, amount)
             
             messagebox.showinfo("暂存成功", "出库单已暂存，可在库存页面查看和继续操作！")
-            dialog.destroy()
+            
+            # 清空表单
+            customer_var.set("")
+            remark_var.set("")
+            total_paid_var.set("0.00")
+            total_debt_var.set("0.00")
+            pay_method_var.set(payment_methods[0])
+            for item in tree.get_children():
+                tree.delete(item)
+            calc_total()
         
         except Exception as e:
             messagebox.showerror("错误", f"暂存失败：{e}")
@@ -650,5 +765,5 @@ def OutboundDialog(parent, cart_list, customer_name=None):
 
     ttk.Button(btn_frame, text="暂存出库单", command=on_save_draft, width=16).pack(side=tk.LEFT, padx=8)
     ttk.Button(btn_frame, text="生成出库单", command=on_submit, width=16).pack(side=tk.LEFT, padx=8)
-
-    dialog.wait_window()
+    
+    return frame
