@@ -163,9 +163,9 @@ def OutboundDialog(parent, cart_list, customer_name=None):
         for v, qty, price in cart_list:
             inv = dbutil.get_inventory_by_id(v[0])
             product_no = inv[2] if inv else ''      # 0
-            color = inv[3] if inv else ''           # 1
-            unit = inv[4] if inv else ''            # 2
-            size = inv[5] if inv else ''            # 3
+            color = inv[4] if inv else ''           # 1
+            unit = inv[5] if inv else ''            # 2
+            size = inv[3] if inv else ''            # 3
             amount = qty * price                    # 6
             # values顺序严格对应columns
             tree.insert("", tk.END, values=(product_no, color, unit, size, qty, price, f"{amount:.2f}", v[0]))
@@ -498,11 +498,8 @@ def OutboundDialog(parent, cart_list, customer_name=None):
                 messagebox.showerror("错误", f"货号:{product_no} 颜色:{color} 尺码:{size} 单价不能为0！")
                 return
             
-            # 通过product_no, color, size获取正确的inventory_id
-            inv = dbutil.get_inventory_by_id_by_fields(product_no, color, size)
-            if not inv:
-                messagebox.showerror("错误", f"货号:{product_no} 颜色:{color} 尺码:{size} 未找到对应库存！")
-                return
+            
+            inv = dbutil.get_inventory_by_id(product_id)
             stock_qty = inv[-1] if inv else 0
             if quantity > stock_qty:
                 messagebox.showerror("库存不足", f"货号:{product_no} 颜色:{color} 尺码:{size} 库存仅剩{stock_qty}，无法出库{quantity}件！")
@@ -555,13 +552,14 @@ def OutboundDialog(parent, cart_list, customer_name=None):
                     outbound_id, product_id, quantity, price, amount
                 )
                 # 使用正确的inventory_id更新库存
-                inv = dbutil.get_inventory_by_id_by_fields(vals[2], vals[3], size)  # product_no, color, size
+                # vals顺序: product_no(0), color(1), unit(2), size(3), qty(4), price(5), amount(6), product_id(7)
+                inv = dbutil.get_inventory_by_id_by_fields(vals[0], vals[1], size)  # product_no, color, size
                 if inv:
                     inventory_id = inv[0]
                     dbutil.update_inventory_size_by_id(inventory_id, size)
                     dbutil.decrease_inventory_by_id(inventory_id, quantity)
                 else:
-                    messagebox.showerror("错误", f"货号:{vals[2]} 颜色:{vals[3]} 尺码:{vals[3]} 未找到对应库存，无法出库！")
+                    messagebox.showerror("错误", f"货号:{vals[0]} 颜色:{vals[1]} 尺码:{size} 未找到对应库存，无法出库！")
                     return
                 item_ids.append(str(item_id))
         
