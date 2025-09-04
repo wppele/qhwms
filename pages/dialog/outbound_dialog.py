@@ -497,6 +497,11 @@ def OutboundDialog(parent, cart_list, customer_name=None):
             messagebox.showwarning("提示", "客户姓名不能为空或仅包含空白字符！")
             return
         
+        # 检查客户姓名是否在列表中
+        if customer_name not in customer_names:
+            messagebox.showwarning("提示", "客户姓名不在客户列表中，请重新选择或添加客户！")
+            return
+        
         # 2. 检查每行商品数量和单价不能为0，且库存是否充足
         for item in tree.get_children():
             vals = tree.item(item)['values']
@@ -663,6 +668,21 @@ def OutboundDialog(parent, cart_list, customer_name=None):
             messagebox.showerror("错误", f"暂存失败：{e}")
             return
 
+    # 添加刷新函数，用于刷新客户列表
+    def refresh():
+        # 重新从数据库获取客户列表
+        global customers, customer_names
+        customers = dbutil.get_all_customers()
+        customer_names = [c[1] for c in customers]
+        # 更新客户选择框的值
+        customer_combo['values'] = customer_names
+        # 如果当前选择的客户不在新的客户列表中，清空选择
+        if customer_var.get() not in customer_names:
+            customer_var.set('')
+    
+    # 将refresh函数绑定到dialog上，供外部调用
+    dialog.refresh = refresh
+    
     ttk.Button(btn_frame, text="暂存出库单", command=on_save_draft, width=16).pack(side=tk.LEFT, padx=8)
     ttk.Button(btn_frame, text="生成出库单", command=on_submit, width=16).pack(side=tk.LEFT, padx=8)
 

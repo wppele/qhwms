@@ -124,7 +124,7 @@ def OutboundPage(parent):
             customer_combo.timer_id = None
         
         # 设置3秒延迟
-        customer_combo.timer_id = customer_combo.after(3000, show_filtered_results)
+        customer_combo.timer_id = customer_combo.after(2000, show_filtered_results)
     
     def show_filtered_results():
         value = customer_var.get()
@@ -138,6 +138,9 @@ def OutboundPage(parent):
             customer_combo.event_generate('<Down>')
     
     customer_combo.bind('<KeyRelease>', on_customer_input)
+    
+    # 绑定回车键事件
+    customer_combo.bind('<Return>', lambda e: show_filtered_results())
     
     def show_history():
         name = customer_var.get()
@@ -533,6 +536,11 @@ def OutboundPage(parent):
             messagebox.showwarning("提示", "客户姓名不能为空或仅包含空白字符！")
             return
         
+        # 检查客户姓名是否在列表中
+        if customer_name not in customer_names:
+            messagebox.showwarning("提示", "客户姓名不在客户列表中，请重新选择或添加客户！")
+            return
+        
         # 2. 检查每行商品数量和单价不能为0，且库存是否充足
         for item in tree.get_children():
             vals = tree.item(item)['values']
@@ -689,14 +697,14 @@ def OutboundPage(parent):
                             customer_info = c
                             break
                     
-                    # 生成库房出库单PDF
+                    # 生成出库单PDF
                     order_data['show_kufang'] = True
-                    kufang_file_path = file_path.replace('.pdf', '_库房.pdf')
+                    kufang_file_path = file_path.replace('.pdf', '_出库单.pdf')
                     PDFUtil.create_order_detail_pdf(order_data, product_data, customer_info, kufang_file_path)
                     
-                    # 生成非库房出库单PDF
+                    # 生成销售单PDF
                     order_data['show_kufang'] = False
-                    feikufang_file_path = file_path.replace('.pdf', '_非库房.pdf')
+                    feikufang_file_path = file_path.replace('.pdf', '_销售单.pdf')
                     PDFUtil.create_order_detail_pdf(order_data, product_data, customer_info, feikufang_file_path)
                     
                     # 显示导出成功提示，2秒后自动消失
@@ -777,7 +785,41 @@ def OutboundPage(parent):
             messagebox.showerror("错误", f"暂存失败：{e}")
             return
 
+    def clear_all_fields():
+        # 清空所有输入字段和表格内容
+        order_no_var.set("")
+        customer_var.set("")
+        remark_var.set("")
+        total_paid_var.set("0.00")
+        total_debt_var.set("0.00")
+        pay_method_var.set(payment_methods[0])
+        # 清空表格
+        for item in tree.get_children():
+            tree.delete(item)
+        # 重新计算总金额
+        calc_total()
+    
+    # 创建一个自定义样式用于红色按钮
+    style = ttk.Style()
+    style.configure("Red.TButton", foreground="red", font=('微软雅黑', 9, 'bold'))
+    
+    ttk.Button(btn_frame, text="清空信息", command=clear_all_fields, width=16, style="Red.TButton").pack(side=tk.LEFT, padx=8)
     ttk.Button(btn_frame, text="暂存出库单", command=on_save_draft, width=16).pack(side=tk.LEFT, padx=8)
     ttk.Button(btn_frame, text="生成出库单", command=on_submit, width=16).pack(side=tk.LEFT, padx=8)
+    
+    # 添加刷新函数，用于刷新客户列表
+    def refresh():
+        # 重新从数据库获取客户列表
+        global customers, customer_names
+        customers = dbutil.get_all_customers()
+        customer_names = [c[1] for c in customers]
+        # 更新客户选择框的值
+        customer_combo['values'] = customer_names
+        # 如果当前选择的客户不在新的客户列表中，清空选择
+        if customer_var.get() not in customer_names:
+            customer_var.set('')
+    
+    # 将refresh函数绑定到frame上，供外部调用
+    frame.refresh = refresh
     
     return frame

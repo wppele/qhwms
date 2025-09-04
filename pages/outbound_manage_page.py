@@ -36,6 +36,11 @@ def OutboundManagePage(parent):
     def do_search():
         load_data()
     ttk.Button(search_frame, text="搜索", command=do_search, width=8).pack(side=tk.LEFT, padx=8)
+    # 绑定回车键事件
+    search_order_entry = search_frame.winfo_children()[2]  # 获取订单号输入框
+    search_customer_entry = search_frame.winfo_children()[4]  # 获取客户输入框
+    search_order_entry.bind('<Return>', lambda e: do_search())
+    search_customer_entry.bind('<Return>', lambda e: do_search())
     # 精简表格，仅展示主表核心信息
     columns = ("order_no", "customer_name", "total_amount", "create_time", "pay_status", "total_paid", "total_debt")
     headers = [

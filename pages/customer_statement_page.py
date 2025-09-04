@@ -25,6 +25,8 @@ class CustomerStatementPage(ttk.Frame):
 
         # 筛选按钮
         ttk.Button(filter_frame, text="筛选", command=self.refresh).pack(side=tk.LEFT, padx=5)
+        # 绑定回车键事件
+        self.customer_entry.bind('<Return>', lambda e: self.refresh())
 
         # 刷新按钮
         ttk.Button(filter_frame, text="刷新", command=self.refresh).pack(side=tk.LEFT, padx=5)

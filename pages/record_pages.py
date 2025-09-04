@@ -19,6 +19,9 @@ def SettleLogPage(parent):
     def on_filter():
         load_data()
     ttk.Button(filter_frame, text="筛选", command=on_filter).pack(side=tk.LEFT, padx=8)
+    # 绑定回车键事件
+    factory_entry.bind('<Return>', lambda e: on_filter())
+    product_entry.bind('<Return>', lambda e: on_filter())
 
     columns = ("factory", "product_no", "size", "color", "in_quantity", "price", "total", "settle_date")
     headers = [

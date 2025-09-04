@@ -59,6 +59,11 @@ class ArrearsSettlePage(ttk.Frame):
         button_frame.pack(side=tk.RIGHT, fill=tk.Y)
 
         ttk.Button(button_frame, text="筛选", command=self.refresh, width=8).pack(side=tk.RIGHT, padx=8)
+        # 绑定回车键事件
+        order_entry = left_filter_frame.winfo_children()[1]
+        customer_entry = left_filter_frame.winfo_children()[3]
+        order_entry.bind('<Return>', lambda e: self.refresh())
+        customer_entry.bind('<Return>', lambda e: self.refresh())
         ttk.Button(button_frame, text="生成对账单", command=self.generate_statement, width=10).pack(side=tk.RIGHT, padx=8)
         ttk.Button(button_frame, text="批量结算", command=self.batch_settle, width=10).pack(side=tk.RIGHT, padx=8)
 
@@ -224,7 +229,7 @@ class ArrearsSettlePage(ttk.Frame):
         amount_entry.pack(side=tk.LEFT, padx=6)
         tk.Label(frm, text="支付方式:", font=("微软雅黑", 11)).pack(side=tk.LEFT, padx=(10,0))
         method_var = tk.StringVar(value="现金")
-        method_combo = ttk.Combobox(frm, textvariable=method_var, values=["现金", "微信", "支付宝", "银联", "云闪付", "其他"], width=8, state="readonly")
+        method_combo = ttk.Combobox(frm, textvariable=method_var, values=["微信", "支付宝", "现金", "银联", "云闪付", "其他"], width=8, state="readonly")
         method_combo.pack(side=tk.LEFT, padx=4)
         result = {'amount': None, 'method': None}
         def on_ok():

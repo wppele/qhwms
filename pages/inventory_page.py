@@ -162,7 +162,11 @@ def InventoryPage(parent):
     def do_search():
         load_data()
     ttk.Button(search_frame, text="搜索", command=do_search, width=8).pack(side=tk.LEFT, padx=8)
-    # ...已移除双击出库功能...
+    # 绑定回车键事件
+    search_factory_entry = search_frame.winfo_children()[2]  # 获取厂家输入框
+    search_product_entry = search_frame.winfo_children()[4]  # 获取货号输入框
+    search_factory_entry.bind('<Return>', lambda e: do_search())
+    search_product_entry.bind('<Return>', lambda e: do_search())
     load_data()
 
     def export_inventory():

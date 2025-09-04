@@ -19,8 +19,13 @@ class SaleReturnPage(ttk.Frame):
         ttk.Entry(filter_frame, textvariable=self.search_order_no, width=16).pack(side=tk.LEFT, padx=4)
         ttk.Label(filter_frame, text="货号:").pack(side=tk.LEFT)
         self.search_product_no = tk.StringVar()
-        ttk.Entry(filter_frame, textvariable=self.search_product_no, width=14).pack(side=tk.LEFT, padx=4)
+        product_entry = ttk.Entry(filter_frame, textvariable=self.search_product_no, width=14)
+        product_entry.pack(side=tk.LEFT, padx=4)
         ttk.Button(filter_frame, text="筛选", command=self.refresh, width=8).pack(side=tk.LEFT, padx=8)
+        # 绑定回车键事件
+        order_entry = filter_frame.winfo_children()[1]
+        product_entry.bind('<Return>', lambda e: self.refresh())
+        order_entry.bind('<Return>', lambda e: self.refresh())
 
         columns = ("order_no", "item_id", "product_no", "color", "size", "quantity", "price", "amount")
         self.tree = ttk.Treeview(self, columns=columns, show="headings")

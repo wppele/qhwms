@@ -59,17 +59,17 @@ def show_main_page(username, root=None):
     up_id = nav_tree.insert('', 'end', text='采购管理', open=False)  # 默认为闭合
     nav_tree.insert(up_id, 'end', text='采购入库', iid='up_stock')
     nav_tree.insert(up_id, 'end', text='结账记录', iid='settle_log')
-    nav_tree.insert(up_id, 'end', text='入库/返厂记录', iid='stock_log')
+    nav_tree.insert(up_id, 'end', text='进返记录', iid='stock_log')
 
     # 销售管理为一级菜单，包含销售开单、出库单管理、销售退换货、收款结算
     sale_id = nav_tree.insert('', 'end', text='销售管理', open=False)
-    nav_tree.insert(sale_id, 'end', text='制作出库单', iid='outbound')
-    nav_tree.insert(sale_id, 'end', text='库存', iid='inventory')
-    nav_tree.insert(sale_id, 'end', text='出库单管理', iid='outbound_manage')
-    nav_tree.insert(sale_id, 'end', text='付款记录查询', iid='payment_record_query')
+    nav_tree.insert(sale_id, 'end', text='销售开单', iid='outbound')
+    nav_tree.insert(sale_id, 'end', text='库存盘点', iid='inventory')
+    nav_tree.insert(sale_id, 'end', text='出库记录', iid='outbound_manage')
+    nav_tree.insert(sale_id, 'end', text='付款记录', iid='payment_record_query')
     nav_tree.insert(sale_id, 'end', text='销售退货', iid='sale_return')
     nav_tree.insert(sale_id, 'end', text='余款结算', iid='arrears_settle')
-    nav_tree.insert(sale_id, 'end', text='客户对账单', iid='customer_statement')
+    nav_tree.insert(sale_id, 'end', text='对账往来', iid='customer_statement')
 
     # 基础信息管理为一级菜单，包含客户信息、账户管理
     base_id = nav_tree.insert('', 'end', text='基础信息管理', open=False)

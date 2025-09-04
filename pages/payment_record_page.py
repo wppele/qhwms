@@ -16,6 +16,11 @@ class PaymentRecordPage(ttk.Frame):
         self.search_customer = tk.StringVar()
         ttk.Entry(filter_frame, textvariable=self.search_customer, width=14).pack(side=tk.LEFT, padx=4)
         ttk.Button(filter_frame, text="筛选", command=self.refresh, width=8).pack(side=tk.LEFT, padx=8)
+        # 绑定回车键事件
+        order_entry = filter_frame.winfo_children()[2]  # 获取订单号输入框
+        customer_entry = filter_frame.winfo_children()[4]  # 获取客户输入框
+        order_entry.bind('<Return>', lambda e: self.refresh())
+        customer_entry.bind('<Return>', lambda e: self.refresh())
         columns = ("no", "order_no", "customer", "payment_amount", "pay_time", "pay_method")
         tree = ttk.Treeview(self, columns=columns, show="headings", height=15)
         for col, txt in zip(columns, ["序号", "订单号", "客户", "付款金额", "付款时间", "支付方式"]):
