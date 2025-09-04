@@ -1,3 +1,4 @@
+# 商品搜索对话框页面
 import tkinter as tk
 from tkinter import ttk, messagebox
 from util import dbutil

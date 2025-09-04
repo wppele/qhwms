@@ -1,3 +1,4 @@
+# 库存管理页面
 import tkinter as tk
 from tkinter import ttk
 from util import dbutil

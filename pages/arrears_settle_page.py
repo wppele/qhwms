@@ -1,3 +1,4 @@
+# 欠款结算页面
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from util import dbutil

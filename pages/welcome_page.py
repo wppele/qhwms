@@ -1,3 +1,4 @@
+# 欢迎页面
 from tkinter import ttk
 
 class WelcomeFrame(ttk.Frame):

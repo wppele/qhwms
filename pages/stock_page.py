@@ -1,4 +1,4 @@
-#库存页面
+# 采购入库页面
 import tkinter as tk
 from tkinter import ttk, filedialog
 import tkinter.messagebox as messagebox
@@ -406,7 +406,26 @@ def StockPage(parent, main_win):
                 is_settled,
                 in_date
             ])
-    ttk.Button(search_frame, text="搜索", command=do_search, width=8).pack(side=tk.LEFT, padx=6)
+    search_btn = ttk.Button(search_frame, text="搜索", command=do_search, width=8)
+    search_btn.pack(side=tk.LEFT, padx=6)
+    
+    # 绑定回车键到搜索按钮
+    search_factory_entry = search_frame.winfo_children()[1]  # 厂家输入框
+    search_product_no_entry = search_frame.winfo_children()[3]  # 货号输入框
+    
+    def on_enter_pressed(event):
+        do_search()
+    
+    search_factory_entry.bind('<Return>', on_enter_pressed)
+    search_product_no_entry.bind('<Return>', on_enter_pressed)
+    
+    # 如果有日期输入框，也绑定回车键
+    try:
+        date_entry.bind('<Return>', on_enter_pressed)
+    except NameError:
+        # 如果没有tkcalendar，日期输入框是普通Entry
+        date_entry_widget = search_frame.winfo_children()[7]  # 日期输入框
+        date_entry_widget.bind('<Return>', on_enter_pressed)
     # 表格区，隐藏id，新增序号列，去掉可用数量
     columns = ("no", "factory", "product_no", "size", "color", "unit", "in_quantity", "price", "total", "is_settled", "in_date")
     headers = [

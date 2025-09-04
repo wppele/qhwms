@@ -1,3 +1,5 @@
+# 出库单页面
+
 import tkinter as tk
 from tkinter import ttk, messagebox
 from util import dbutil
